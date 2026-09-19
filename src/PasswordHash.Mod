@@ -157,13 +157,14 @@ END Parse;
 PROCEDURE Create*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER; policy: Policy; VAR encoded: ARRAY OF SHORTCHAR; VAR encodedLen: INTEGER): INTEGER;
 VAR r: Record; status: INTEGER;
 BEGIN
-  ClearOutput(encoded, encodedLen);
-  IF ~ValidPolicy(policy) THEN RETURN PasswordStatus.InvalidPolicy END;
-  IF ~PasswordBytes.Valid(password, passwordLen) THEN RETURN PasswordStatus.InvalidArgument END;
-  IF passwordLen > policy.passwordLimit THEN RETURN PasswordStatus.PasswordTooLong END;
-  IF LEN(encoded) < EncodedCapacity THEN RETURN PasswordStatus.BufferTooSmall END;
+  encodedLen := 0;
+  IF ~ValidPolicy(policy) THEN ClearOutput(encoded, encodedLen); RETURN PasswordStatus.InvalidPolicy END;
+  IF ~PasswordBytes.Valid(password, passwordLen) THEN ClearOutput(encoded, encodedLen); RETURN PasswordStatus.InvalidArgument END;
+  IF passwordLen > policy.passwordLimit THEN ClearOutput(encoded, encodedLen); RETURN PasswordStatus.PasswordTooLong END;
+  IF LEN(encoded) < EncodedCapacity THEN ClearOutput(encoded, encodedLen); RETURN PasswordStatus.BufferTooSmall END;
   IF ~SecureRandom.Fill(r.salt, SaltLength) THEN
-    PasswordBytes.Clear(r.salt, LEN(r.salt)); PasswordBytes.Clear(r.key, LEN(r.key)); RETURN PasswordStatus.RandomUnavailable
+    PasswordBytes.Clear(r.salt, LEN(r.salt)); PasswordBytes.Clear(r.key, LEN(r.key));
+    ClearOutput(encoded, encodedLen); RETURN PasswordStatus.RandomUnavailable
   END;
   r.iterations := policy.targetIterations;
   status := Pbkdf2.Derive(password, passwordLen, r.salt, SaltLength, r.iterations, DerivedKeyLength, r.key);

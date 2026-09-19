@@ -40,7 +40,7 @@ BEGIN
   IF status = PasswordStatus.Ok THEN status := Sha256.Init(c.outer) END;
   IF status = PasswordStatus.Ok THEN status := Sha256.Update(c.outer, pad, LEN(pad)) END;
   PasswordBytes.Clear(k, LEN(k)); PasswordBytes.Clear(pad, LEN(pad));
-  IF status = PasswordStatus.Ok THEN c.ready := TRUE END;
+  IF status = PasswordStatus.Ok THEN c.ready := TRUE ELSE Clear(c) END;
   RETURN status
 END Prepare;
 

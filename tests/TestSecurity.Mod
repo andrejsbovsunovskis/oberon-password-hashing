@@ -10,8 +10,10 @@ VAR key: ARRAY 21 OF SHORTCHAR;
   expectedDk: ARRAY 40 OF SHORTCHAR;
   mac: ARRAY 32 OF SHORTCHAR;
   dk: ARRAY 40 OF SHORTCHAR;
+  shortDk: ARRAY 31 OF SHORTCHAR;
   block: ARRAY 64 OF SHORTCHAR;
   tail: ARRAY 63 OF SHORTCHAR;
+  longPassword: ARRAY PasswordHash.PasswordLimit + 1 OF SHORTCHAR;
   digest1, digest2: ARRAY Sha256.DigestLength OF SHORTCHAR;
   shortDigest: ARRAY Sha256.DigestLength - 1 OF SHORTCHAR;
   c: Sha256.Context;
@@ -19,7 +21,9 @@ VAR key: ARRAY 21 OF SHORTCHAR;
   record: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
   tooSmall: ARRAY PasswordHash.EncodedCapacity - 1 OF SHORTCHAR;
   oversized: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
+  alias: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
   recordLen, status, i: INTEGER;
+  saved: SHORTCHAR;
   matches, needsRehash: BOOLEAN;
 
 PROCEDURE Nibble(ch: SHORTCHAR): INTEGER;
@@ -38,6 +42,17 @@ BEGIN
   END
 END DecodeHex;
 
+PROCEDURE IsCleared(IN value: ARRAY OF SHORTCHAR): BOOLEAN;
+VAR j: INTEGER;
+BEGIN
+  j := 0;
+  WHILE j < LEN(value) DO
+    IF value[j] # 0X THEN RETURN FALSE END;
+    INC(j)
+  END;
+  RETURN TRUE
+END IsCleared;
+
 BEGIN
   i := 0;
   WHILE i < 20 DO key[i] := 0BX; INC(i) END;
@@ -50,6 +65,10 @@ BEGIN
   DecodeHex('ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43830651afcb5c862f', expectedDk);
   status := Pbkdf2.Derive(password, 8, salt, 4, 2, LEN(dk), dk); ASSERT(status = PasswordStatus.Ok, 3);
   ASSERT(PasswordBytes.EqualConstantTime(dk, expectedDk, LEN(dk)), 4);
+  status := Pbkdf2.Derive(password, 8, salt, 4, 1, 0, shortDk);
+  ASSERT(status = PasswordStatus.InvalidArgument, 28);
+  status := Pbkdf2.Derive(password, 8, salt, 4, 1, 32, shortDk);
+  ASSERT(status = PasswordStatus.BufferTooSmall, 29); ASSERT(IsCleared(shortDk), 30);
 
   i := 0;
   WHILE i < LEN(block) DO block[i] := SYSTEM.VAL(SHORTCHAR, i); INC(i) END;
@@ -77,5 +96,41 @@ BEGIN
   status := PasswordHash.Verify(password, 8, record, recordLen, policy, matches, needsRehash);
   ASSERT(status = PasswordStatus.InvalidFormat, 22); ASSERT(~matches, 23); ASSERT(~needsRehash, 24);
   status := PasswordHash.Verify(password, 8, oversized, LEN(oversized), policy, matches, needsRehash);
-  ASSERT(status = PasswordStatus.InvalidFormat, 25); ASSERT(~matches, 26); ASSERT(~needsRehash, 27)
+  ASSERT(status = PasswordStatus.InvalidFormat, 25); ASSERT(~matches, 26); ASSERT(~needsRehash, 27);
+
+  password := 'password';
+  status := PasswordHash.Create(password, 8, policy, record, recordLen); ASSERT(status = PasswordStatus.Ok, 31);
+  policy.targetIterations := 2;
+  status := PasswordHash.NeedsRehash(record, recordLen, policy, needsRehash);
+  ASSERT(status = PasswordStatus.Ok, 32); ASSERT(needsRehash, 33);
+  status := PasswordHash.Verify(password, 8, record, recordLen, policy, matches, needsRehash);
+  ASSERT(status = PasswordStatus.Ok, 34); ASSERT(matches, 35); ASSERT(needsRehash, 36);
+  policy.minIterations := 2;
+  status := PasswordHash.Verify(password, 8, record, recordLen, policy, matches, needsRehash);
+  ASSERT(status = PasswordStatus.PolicyRejected, 37); ASSERT(~matches, 38); ASSERT(~needsRehash, 39);
+
+  PasswordHash.DefaultPolicy(policy);
+  policy.minIterations := 1; policy.targetIterations := 1; policy.maxIterations := 2; policy.hardLimit := 2;
+  saved := record[recordLen - 1]; record[recordLen - 1] := 'A';
+  status := PasswordHash.Verify(password, 8, record, recordLen, policy, matches, needsRehash);
+  ASSERT(status = PasswordStatus.InvalidFormat, 40); ASSERT(~matches, 41); ASSERT(~needsRehash, 42);
+  record[recordLen - 1] := saved;
+
+  i := 0; WHILE i < LEN(longPassword) DO longPassword[i] := 'a'; INC(i) END;
+  record[0] := 'x'; record[1] := 'x';
+  status := PasswordHash.Create(longPassword, LEN(longPassword), policy, record, recordLen);
+  ASSERT(status = PasswordStatus.PasswordTooLong, 43); ASSERT(recordLen = 0, 44); ASSERT(IsCleared(record), 45);
+
+  policy.minIterations := 0;
+  record[0] := 'x';
+  status := PasswordHash.Create(password, 8, policy, record, recordLen);
+  ASSERT(status = PasswordStatus.InvalidPolicy, 46); ASSERT(recordLen = 0, 47); ASSERT(IsCleared(record), 48);
+
+  PasswordHash.DefaultPolicy(policy);
+  policy.minIterations := 1; policy.targetIterations := 1; policy.maxIterations := 2; policy.hardLimit := 2;
+  alias := 'password';
+  status := PasswordHash.Create(alias, 8, policy, alias, recordLen); ASSERT(status = PasswordStatus.Ok, 49);
+  password := 'password';
+  status := PasswordHash.Verify(password, 8, alias, recordLen, policy, matches, needsRehash);
+  ASSERT(status = PasswordStatus.Ok, 50); ASSERT(matches, 51)
 END TestSecurity.

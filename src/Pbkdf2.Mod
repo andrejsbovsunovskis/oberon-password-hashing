@@ -20,7 +20,10 @@ VAR h: HmacSha256.Context;
   u, t: ARRAY HmacSha256.MacLength OF SHORTCHAR;
   block, pos, i, j, take, status: INTEGER;
 BEGIN
-  IF (dkLen <= 0) OR (dkLen > MaxDerivedLength) OR (dkLen > LEN(key)) THEN
+  IF (dkLen <= 0) OR (dkLen > MaxDerivedLength) THEN
+    PasswordBytes.Clear(key, LEN(key)); RETURN PasswordStatus.InvalidArgument
+  END;
+  IF dkLen > LEN(key) THEN
     PasswordBytes.Clear(key, LEN(key)); RETURN PasswordStatus.BufferTooSmall
   END;
   IF ~PasswordBytes.Valid(password, passwordLen) OR ~PasswordBytes.Valid(salt, saltLen) OR
