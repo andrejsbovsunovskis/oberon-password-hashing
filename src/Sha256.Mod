@@ -13,7 +13,8 @@ TYPE Context* = RECORD
 END;
 
 PROCEDURE C(hi, lo: INTEGER): W.Word;
-BEGIN RETURN LONG(hi) * 65536 + lo END C;
+VAR x: W.Word;
+BEGIN W.Set(x, hi, lo); RETURN x END C;
 
 PROCEDURE Add4(a, b, c, d: W.Word): W.Word;
 BEGIN RETURN W.Add(W.Add(a, b), W.Add(c, d)) END Add4;
@@ -111,11 +112,9 @@ BEGIN
 END Init;
 
 PROCEDURE Clear*(VAR c: Context);
-VAR i: INTEGER;
 BEGIN
   PasswordBytes.Clear(c.block, LEN(c.block));
-  i := 0;
-  WHILE i < LEN(c.h) DO W.Set(c.h[i], 0, 0); INC(i) END;
+  PasswordBytes.ClearWords(c.h, LEN(c.h));
   W.Set(c.bytesHi, 0, 0); W.Set(c.bytesLo, 0, 0);
   c.used := 0; c.initialized := FALSE; c.finished := FALSE
 END Clear;
@@ -178,6 +177,7 @@ BEGIN
   status := Init(c);
   IF status = PasswordStatus.Ok THEN status := Update(c, data, dataLen) END;
   IF status = PasswordStatus.Ok THEN status := Final(c, digest) ELSE PasswordBytes.Clear(digest, DigestLength) END;
+  Clear(c);
   RETURN status
 END Hash;
 

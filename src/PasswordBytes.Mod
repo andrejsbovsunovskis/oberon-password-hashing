@@ -17,6 +17,16 @@ BEGIN
   WHILE i < limit DO a[i] := 0X; INC(i) END
 END Clear;
 
+PROCEDURE ClearWords*(VAR a: ARRAY OF INTEGER; n: INTEGER);
+VAR i, limit: INTEGER;
+BEGIN
+  limit := n;
+  IF limit < 0 THEN limit := 0 END;
+  IF limit > LEN(a) THEN limit := LEN(a) END;
+  i := 0;
+  WHILE i < limit DO a[i] := 0; INC(i) END
+END ClearWords;
+
 PROCEDURE Copy*(IN src: ARRAY OF SHORTCHAR; srcPos: INTEGER;
                VAR dst: ARRAY OF SHORTCHAR; dstPos, n: INTEGER);
 VAR i: INTEGER;

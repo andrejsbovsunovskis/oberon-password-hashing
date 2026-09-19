@@ -4,6 +4,14 @@ IMPORT SYSTEM, PasswordStatus, PasswordBytes, HmacSha256;
 
 CONST MaxDerivedLength* = 1024;
 
+PROCEDURE XorByte(a, b: SHORTCHAR): SHORTCHAR;
+VAR x, y: INTEGER;
+BEGIN
+  x := ORD(a); y := ORD(b);
+  RETURN SYSTEM.VAL(SHORTCHAR, SYSTEM.VAL(INTEGER,
+    SYSTEM.VAL(SET, x) / SYSTEM.VAL(SET, y)))
+END XorByte;
+
 PROCEDURE Derive*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER;
                   IN salt: ARRAY OF SHORTCHAR; saltLen, iterations, dkLen: INTEGER;
                   VAR key: ARRAY OF SHORTCHAR): INTEGER;
@@ -40,7 +48,7 @@ BEGIN
         PasswordBytes.Clear(key, dkLen); PasswordBytes.Clear(input, LEN(input));
         PasswordBytes.Clear(u, LEN(u)); PasswordBytes.Clear(t, LEN(t)); HmacSha256.Clear(h); RETURN status
       END;
-      j := 0; WHILE j < LEN(t) DO t[j] := PasswordBytes.XorByte(t[j], u[j]); INC(j) END;
+      j := 0; WHILE j < LEN(t) DO t[j] := XorByte(t[j], u[j]); INC(j) END;
       INC(i)
     END;
     take := dkLen - pos; IF take > LEN(t) THEN take := LEN(t) END;

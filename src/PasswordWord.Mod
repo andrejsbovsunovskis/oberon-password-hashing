@@ -4,19 +4,26 @@ IMPORT SYSTEM;
 
 CONST Base = 65536;
 
-TYPE Word* = LONGINT;
+TYPE Word* = INTEGER;
 
 PROCEDURE Set*(VAR x: Word; hi, lo: INTEGER);
-BEGIN x := LONG(hi MOD Base) * Base + lo MOD Base END Set;
+BEGIN
+  x := SYSTEM.VAL(INTEGER,
+    SYSTEM.VAL(SET, SYSTEM.LSH(hi MOD Base, 16)) + SYSTEM.VAL(SET, lo MOD Base))
+END Set;
 
 PROCEDURE Hi*(x: Word): INTEGER;
-BEGIN RETURN SHORT(x DIV Base) END Hi;
+BEGIN RETURN SYSTEM.LSH(x, -16) MOD Base END Hi;
 
 PROCEDURE Lo*(x: Word): INTEGER;
-BEGIN RETURN SHORT(x MOD Base) END Lo;
+BEGIN RETURN SYSTEM.VAL(INTEGER, SYSTEM.VAL(SET, x) * SYSTEM.VAL(SET, Base - 1)) END Lo;
 
 PROCEDURE FromBytes*(a, b, c, d: SHORTCHAR): Word;
-BEGIN RETURN LONG(ORD(a) * 256 + ORD(b)) * Base + ORD(c) * 256 + ORD(d) END FromBytes;
+BEGIN
+  RETURN SYSTEM.VAL(INTEGER,
+    SYSTEM.VAL(SET, SYSTEM.LSH(ORD(a) * 256 + ORD(b), 16)) +
+    SYSTEM.VAL(SET, ORD(c) * 256 + ORD(d)))
+END FromBytes;
 
 PROCEDURE PutBytes*(x: Word; VAR a, b, c, d: SHORTCHAR);
 VAR hi, lo: INTEGER;
@@ -27,33 +34,40 @@ BEGIN
 END PutBytes;
 
 PROCEDURE Add*(a, b: Word): Word;
-VAR hi, lo: INTEGER;
-BEGIN lo := Lo(a) + Lo(b); hi := (Hi(a) + Hi(b) + lo DIV Base) MOD Base; RETURN LONG(hi) * Base + lo MOD Base END Add;
+VAR sum, modulus, topBit: LONGINT;
+BEGIN
+  (* Convert signed bit patterns to 0..2^32-1, add in LONGINT, then convert
+     back without signed INTEGER overflow. *)
+  modulus := LONG(Base) * Base;
+  topBit := LONG(32768) * Base;
+  sum := LONG(a); IF sum < 0 THEN sum := sum + modulus END;
+  IF b < 0 THEN sum := sum + LONG(b) + modulus ELSE sum := sum + LONG(b) END;
+  IF sum >= modulus THEN sum := sum - modulus END;
+  IF sum >= topBit THEN RETURN MIN(INTEGER) + SHORT(sum - topBit) ELSE RETURN SHORT(sum) END
+END Add;
 
 PROCEDURE XorPart(a, b: INTEGER): INTEGER;
 BEGIN RETURN SYSTEM.VAL(INTEGER, SYSTEM.VAL(SET, a) / SYSTEM.VAL(SET, b)) END XorPart;
 
 PROCEDURE Xor*(a, b: Word): Word;
-BEGIN RETURN LONG(XorPart(Hi(a), Hi(b))) * Base + XorPart(Lo(a), Lo(b)) END Xor;
+BEGIN RETURN SYSTEM.VAL(INTEGER, SYSTEM.VAL(SET, a) / SYSTEM.VAL(SET, b)) END Xor;
 
 PROCEDURE AndPart(a, b: INTEGER): INTEGER;
 BEGIN RETURN SYSTEM.VAL(INTEGER, SYSTEM.VAL(SET, a) * SYSTEM.VAL(SET, b)) END AndPart;
 
 PROCEDURE And*(a, b: Word): Word;
-BEGIN RETURN LONG(AndPart(Hi(a), Hi(b))) * Base + AndPart(Lo(a), Lo(b)) END And;
+BEGIN RETURN SYSTEM.VAL(INTEGER, SYSTEM.VAL(SET, a) * SYSTEM.VAL(SET, b)) END And;
 
 PROCEDURE Not*(a: Word): Word;
-BEGIN RETURN LONG(65535 - Hi(a)) * Base + 65535 - Lo(a) END Not;
-
-PROCEDURE Pow2(n: INTEGER): LONGINT;
-VAR p: LONGINT; i: INTEGER;
-BEGIN p := 1; i := 0; WHILE i < n DO p := p * 2; INC(i) END; RETURN p END Pow2;
+BEGIN RETURN SYSTEM.VAL(INTEGER, -SYSTEM.VAL(SET, a)) END Not;
 
 PROCEDURE Ror*(a: Word; n: INTEGER): Word;
-VAR p, q: LONGINT;
-BEGIN n := n MOD 32; IF n = 0 THEN RETURN a END; p := Pow2(n); q := Pow2(32 - n); RETURN a DIV p + (a MOD p) * q END Ror;
+BEGIN
+  n := n MOD 32;
+  IF n = 0 THEN RETURN a ELSE RETURN SYSTEM.ROT(a, -n) END
+END Ror;
 
 PROCEDURE Shr*(a: Word; n: INTEGER): Word;
-BEGIN IF n >= 32 THEN RETURN 0 ELSE RETURN a DIV Pow2(n) END END Shr;
+BEGIN IF n >= 32 THEN RETURN 0 ELSE RETURN SYSTEM.LSH(a, -n) END END Shr;
 
 END PasswordWord.
