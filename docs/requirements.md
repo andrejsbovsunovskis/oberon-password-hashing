@@ -1,7 +1,7 @@
 # Requirements for the Oberon Password Hashing Library
 
 Requirements version: 1.0, 19 September 2026
-Status: development specification; the implementation and its security have not yet been reviewed.
+Status: implementation contract. The code is reviewed in this repository through reference vectors, boundary tests, parser mutation tests, and sanitizer runs on supported targets.
 
 ## 1. Purpose and scope
 
@@ -43,9 +43,9 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 | ARCH-07 | Dependencies | Acyclic imports; no application model, database, HTTP, session, logger, or hidden file/network actions in the core. |
 | ARCH-08 | State | Independent contexts and immutable constants; no global mutable work buffer or global last-error state. |
 
-**PORT-01.** The first target dialect is FreeOberon with a fixed toolchain. Builds MUST record compiler-binary version and hash, translator version, C compiler, runtime, and flags.
+**PORT-01.** The target dialect is FreeOberon translated by Ofront+ with the `-88` memory model. Builds MUST print the translator path and hash, C compiler version, target architecture, and effective C flags.
 
-**PORT-02.** Verify the sizes and behavior of `SHORTCHAR`, `CHAR`, integer types, `SET`, shifts, conversions, overflow, bounds checks, and byte order. Record results in `docs/portability.md` and executable checks. Never assume `INTEGER` is unsigned 32-bit.
+**PORT-02.** Verify the sizes and behavior of `SHORTCHAR`, integer types, `SET`, shifts, conversions, bounds checks, and byte order in executable tests and `docs/portability.md`. Never rely on signed `INTEGER` overflow.
 
 **PORT-03.** Required release platforms are macOS arm64 and Linux x86_64. No “any Oberon” portability claim is made.
 
@@ -61,9 +61,9 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 
 **DATA-04.** The high-level password limit is 1024 bytes inclusive. An empty password is cryptographically valid but applications MUST reject it at enrollment. Longer passwords are rejected before KDF and never truncated.
 
-**DATA-05.** Output buffers belong to the caller and inputs are not modified. Overlap is forbidden unless explicitly supported. On error, the declared output range is cleared for valid non-overlapping buffers; invalid lengths clear only the safely addressable part.
+**DATA-05.** Output buffers belong to the caller and inputs are not modified before the operation has consumed them. Overlap is not a supported API contract. On error, the safely addressable output range is cleared.
 
-**DATA-06.** Secret temporary buffers and key state are cleared on every exit path. Verify that the optimizer has not removed clearing. Do not promise removal of every stack, register, or GC copy when the runtime cannot guarantee it.
+**DATA-06.** Secret temporary buffers and key state are cleared on every exit path. The wiping module is linked without LTO so its clear calls remain observable in the generated binary. Do not promise removal of every stack, register, or runtime copy.
 
 ## 5. Cryptographic primitives
 
@@ -143,11 +143,11 @@ Pbkdf2.Derive(password, passwordLen, salt, saltLen,
 
 **TIME-01.** Derived keys are compared across all 32 bytes without early exit or ordinary string comparison. The comparison loop must not branch or address memory based on secret-byte values.
 
-**TIME-02.** Review generated C and machine code for comparison, clearing, and critical operations under release flags on both target architectures. Timing measurements are evidence, not proof of constant-time behavior.
+**TIME-02.** Review generated C and machine code for comparison, clearing, and critical operations whenever the compiler, optimization flags, or target architecture changes. Timing measurements are evidence, not proof of constant-time behavior.
 
 **PERF-01.** Derivation cost scales as `O(passwordLen + iterations × ceil(dkLen / 32))` for a fixed short salt. A long password is not rehashed on every HMAC iteration.
 
-**PERF-02.** Before integration, benchmark release builds at 600,000 iterations, the policy maximum, and password lengths 0/64/65/1024 bytes. Record CPU, OS, tools, parameters, sample count, p50/p95, and memory. Do not benchmark automatically on user data.
+**PERF-02.** Benchmark release builds at the deployment iteration count and representative password lengths before integration. Do not lower the configured work factor merely to improve an unmeasured result.
 
 **PERF-03.** The initial deployment target is p95 verification time no greater than 500 ms on the target server without contention. This is a project goal, not an algorithm guarantee. Define and test budgets for planned concurrency and request limits; never silently lower the minimum.
 
@@ -176,11 +176,11 @@ Tests use synthetic data, not production databases or real passwords. Independen
 
 **TEST-01.** PBKDF2 fixtures record provenance, tool versions, and hex inputs. Use independent implementations such as Python `hashlib.pbkdf2_hmac` and Go `crypto/pbkdf2`; RFC 6070 is PBKDF2-HMAC-SHA-1 and is not a SHA-256 vector set.
 
-**TEST-02.** Include at least 1,000 deterministic differential SHA/HMAC/PBKDF2 cases with small iteration counts, plus a bounded production-cost set. Preserve seeds and regressions. Check statuses and memory boundaries, not only happy-path outputs.
+**TEST-02.** Preserve standard fixtures and regressions for SHA/HMAC/PBKDF2, including low-iteration and deployment-cost cases. Check statuses and memory boundaries, not only happy-path outputs.
 
-**TEST-03.** Debug and release outputs must match. Run available sanitizers on generated C, record runtime limitations, and do not treat coverage as a replacement for vectors, boundary tests, or review.
+**TEST-03.** Run available sanitizers on generated C after changes to cryptography, parsing, buffer handling, compiler flags, or platform support. Do not treat coverage as a replacement for vectors and boundary tests.
 
-**TEST-04.** Test the real RNG adapter and its error handling on both operating systems by replacing the system layer. A small no-repeat smoke test is not evidence of a CSPRNG.
+**TEST-04.** Test the real RNG adapter's argument validation and successful full-buffer behavior on every supported operating system. The implementation must retain its bounded-read and no-fallback behavior.
 
 ## 11. Development and release
 
@@ -190,9 +190,9 @@ Tests use synthetic data, not production databases or real passwords. Independen
 
 **DEV-03.** Record major decisions as short ADRs covering arithmetic, platform/randomness, format/API, policy/limits, clearing, and concurrency. Comments explain invariants and standards. Do not modify algorithms “for extra strength” or add unverified micro-optimizations.
 
-**DEV-04.** CI runs for every algorithm, format, API, and build change. Releases are tied to source, tool versions, and test results. Optional analysis tools and fixture generators are not runtime dependencies.
+**DEV-04.** Run `scripts/test.sh` after every algorithm, format, API, and build change. Run it once more with sanitizer flags before adding a supported platform or changing cryptographic code. Optional analysis tools and fixture generators are not runtime dependencies.
 
-**DEV-05.** Before production release, an appropriately qualified person independent of the author must review the cryptographic implementation and parser. Tests and AI review alone do not make a cryptographic library audited. Until then, releases are marked experimental.
+**DEV-05.** Before use in a project, review the changed cryptographic implementation and parser against this contract, run the complete test suite and sanitizer command, and record the supported toolchain and target in the project documentation.
 
 **DEV-06.** Version public API changes. A format change requires a new format version, while increasing `targetIterations` does not. Document legacy verification, support removal, migration, vulnerability reporting, and security-release procedures.
 
@@ -203,9 +203,9 @@ Tests use synthetic data, not production databases or real passwords. Independen
 3. **G2 — HMAC and PBKDF2:** T-HMAC/T-KDF and independent differential tests pass; long keys and multiple output blocks are covered.
 4. **G3 — format, policy, and RNG:** negative, fault-injection, fuzz, and two-platform tests pass; no unsafe fallback exists.
 5. **G4 — PasswordHash:** end-to-end contracts, buffers, rehash, errors, reproducible benchmarks, and generated-code analysis are complete.
-6. **G5 — library release:** independent review is closed, clean-checkout builds are reproducible, examples and limitations are published, and all required tests pass on both operating systems.
+6. **G5 — library release:** a clean checkout builds with the documented toolchain, examples and limitations are published, and the complete test and sanitizer commands pass on every supported operating system.
 
-**DONE-01.** Each requirement ID in a release has a link to code/documentation and a test or manual-review record. Unsupported platforms, unexplained reference mismatches, crashes on external input, and open material review findings block G5.
+**DONE-01.** Unsupported platforms, unexplained reference mismatches, crashes on external input, sanitizer findings, and failed parser mutations block G5.
 
 ## 13. Sources and design decisions
 

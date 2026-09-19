@@ -1,6 +1,6 @@
 MODULE PasswordRecords;
 
-IMPORT PasswordHash, PasswordStatus;
+IMPORT PasswordHash, PasswordStatus, PasswordBytes;
 
 (* Applications store encoded records unchanged and decide what to tell users. *)
 
@@ -27,5 +27,24 @@ BEGIN
   END;
   RETURN status
 END VerifyRecord;
+
+PROCEDURE VerifyAndRefresh*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER;
+                            IN record: ARRAY OF SHORTCHAR; recordLen: INTEGER;
+                            VAR replacement: ARRAY OF SHORTCHAR; VAR replacementLen: INTEGER;
+                            VAR accepted, replaced: BOOLEAN): INTEGER;
+VAR policy: PasswordHash.Policy;
+  needsRehash: BOOLEAN;
+  status: INTEGER;
+BEGIN
+  accepted := FALSE; replaced := FALSE; PasswordBytes.Clear(replacement, LEN(replacement)); replacementLen := 0;
+  PasswordHash.DefaultPolicy(policy);
+  status := PasswordHash.Verify(password, passwordLen, record, recordLen, policy, accepted, needsRehash);
+  IF (status = PasswordStatus.Ok) & accepted & needsRehash THEN
+    status := PasswordHash.Create(password, passwordLen, policy, replacement, replacementLen);
+    IF status = PasswordStatus.Ok THEN replaced := TRUE ELSE accepted := FALSE END
+  END;
+  IF status # PasswordStatus.Ok THEN accepted := FALSE; replaced := FALSE END;
+  RETURN status
+END VerifyAndRefresh;
 
 END PasswordRecords.
