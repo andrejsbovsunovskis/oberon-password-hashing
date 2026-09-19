@@ -1,241 +1,219 @@
-# Требования к библиотеке хеширования паролей на Oberon
+# Requirements for the Oberon Password Hashing Library
 
-Версия требований: 1.0, 19 сентября 2026 года.
-Статус: спецификация для разработки; реализация и её безопасность ещё не проверены.
+Requirements version: 1.0, 19 September 2026
+Status: development specification; the implementation and its security have not yet been reviewed.
 
-## 1. Основание и назначение
+## 1. Purpose and scope
 
-Библиотека проектируется как самостоятельный набор модулей `Sha256`, `HmacSha256`, `Pbkdf2` и `PasswordHash`, пригодный для повторного использования в Oberon-проектах. Конкретные API, формат и лимиты ниже — проектные решения настоящей спецификации, а не уже существующие возможности.
+The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2`, and `PasswordHash`. It creates, verifies, and upgrades password representations independently of an application's data model, UI, or infrastructure.
 
-Библиотека должна создавать, проверять и обновлять безопасные представления паролей. Она не зависит от модели данных, пользовательского интерфейса или инфраструктуры конкретного приложения.
+**MUST** and **MUST NOT** are mandatory. **SHOULD** permits an exception only with written justification and documented consequences. Requirement IDs are used by tests and reviews.
 
-Слова **ДОЛЖНА**, **ЗАПРЕЩЕНО** обозначают обязательные требования. **СЛЕДУЕТ** допускает отступление только с письменным обоснованием и описанием последствий. Идентификаторы требований используются в тестах и ревью. Все требования обязательны для v1, кроме явно отложенных возможностей и рекомендаций.
+### Oberon-only boundary
 
-### Границы «только Oberon»
+- The cryptographic core, KDF, encoding, and parser are implemented in Oberon. Production code MUST NOT call OpenSSL, libsodium, external programs, or network services to compute hashes.
+- The standard runtime/compiler and isolated operating-system calls for random bytes are allowed. Generated C does not violate this boundary.
+- Platform adapters SHOULD use existing Oberon foreign declarations. Custom C code is an explicit change to this boundary.
+- Creating a hash without a supplied cryptographic random source MUST fail.
 
-- Криптографическое ядро, KDF, кодирование и парсер реализуются на Oberon. Запрещены вызовы OpenSSL, libsodium, внешних программ или сетевых сервисов для вычисления хешей в рабочей библиотеке.
-- Допускаются штатный runtime/транслятор и изолированные обращения к ОС для получения случайных байтов. Генерируемый компилятором C не нарушает это ограничение.
-- Платформенный адаптер по возможности пишется через существующие foreign-декларации Oberon. Если требуется собственный C-код, это отдельное изменение ограничения, а не молчаливое исключение.
-- Сборка без платформенного адаптера может проверять пароли и выполнять примитивы. Создание хеша без предоставленного криптографического источника случайности должно завершаться ошибкой.
+### Algorithm choice
 
-### Выбор алгоритма
+**SCOPE-01.** v1 implements PBKDF2-HMAC-SHA-256. This is a pragmatic choice for an Oberon implementation with a tractable review surface; it does not mean PBKDF2 is preferable to Argon2id. OWASP prefers Argon2id for new systems. The preparation-time reference for PBKDF2-HMAC-SHA-256 is 600,000 iterations. A custom implementation is not FIPS-validated. See [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
 
-**SCOPE-01.** v1 реализует PBKDF2-HMAC-SHA-256. Выбор обусловлен ограничением на реализацию на Oberon и обозримым объёмом проверки. Он не означает, что PBKDF2 лучше Argon2id: OWASP предпочитает Argon2id для новых систем. Для PBKDF2-HMAC-SHA-256 на дату подготовки указан ориентир 600 000 итераций. Собственная реализация PBKDF2 не даёт статуса FIPS-validated. [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
+**SCOPE-02.** v1 excludes Argon2, encryption, digital signatures, sessions, temporary-password generation, HTTP, SQL, database migrations, password-complexity policy, and pepper management. HMAC is a shared-secret MAC, not a digital signature.
 
-**SCOPE-02.** В v1 не входят Argon2, шифрование, цифровые подписи, управление сессиями, генератор временных паролей, HTTP, SQL, миграции БД, политика сложности паролей и управление pepper. HMAC является MAC с общим секретом, а не цифровой подписью. Расширения вводятся отдельными требованиями.
+## 2. Threat model and guarantees
 
-## 2. Модель угроз и гарантии
+**SEC-01.** Assume an attacker can obtain the database, submit arbitrary passwords and malformed hash strings, call verification repeatedly, and observe responses and processing time. Salt, algorithm, and iteration count are not secret.
 
-**SEC-01.** Предполагается, что атакующий может получить БД, подавать произвольные пароли и повреждённые строки хешей, многократно вызывать проверку, наблюдать ответы и время обработки. Соль, алгоритм и число итераций не секретны. Защищаемые данные — пароль, HMAC-состояния и производный ключ.
+**SEC-02.** The library MUST prevent silent truncation, out-of-bounds access, incomplete formats, uncontrolled work caused by input parameters, and authentication after an error. It raises the cost of offline guessing but cannot make a weak password unguessable or compensate for a compromised process or OS.
 
-**SEC-02.** Библиотека должна исключать тихое усечение, чтение/запись вне буферов, принятие неполного формата, неконтролируемые затраты по параметрам входа и разрешение входа после ошибки. Она повышает стоимость офлайн-перебора, но не защищает слабый пароль от любого подбора и не компенсирует компрометацию процесса или ОС.
+**SEC-03.** Rate limiting, TLS, user-enumeration protection, concurrent-KDF limits, secure sessions, and password reset are application responsibilities.
 
-**SEC-03.** Rate limiting, TLS, защита от перечисления пользователей, ограничение параллельных KDF, безопасные сессии и сброс паролей — ответственность приложения. Интегрирующее приложение документирует и проверяет эти меры отдельно.
+## 3. Architecture and portability
 
-## 3. Архитектура и переносимость
-
-| ID | Модуль/область | Требование |
+| ID | Area | Requirement |
 |---|---|---|
-| ARCH-01 | `Sha256` | Одноразовое и потоковое хеширование; без источника случайности и зависимостей от верхних уровней. |
-| ARCH-02 | `HmacSha256` | HMAC поверх SHA-256; подготовка ключевого состояния для повторных вычислений. |
-| ARCH-03 | `Pbkdf2` | PBKDF2-HMAC-SHA-256 над байтами; параметры задаёт вызывающий код. |
-| ARCH-04 | `PasswordHash` | Политика, формат, соль, создание, проверка, определение необходимости обновления. |
-| ARCH-05 | `SecureRandom` | Контракт заполнения буфера; отдельные реализации для поддерживаемых ОС. |
-| ARCH-06 | Внутренние утилиты | При необходимости: 32-битная арифметика, hex, сравнение и очистка. Не превращать их автоматически в стабильный публичный API. |
-| ARCH-07 | Зависимости | Ациклические импорты; запрещены импорты предметной модели, БД, HTTP, сессий, логгеров конкретного приложения и скрытые файловые/сетевые действия ядра. |
-| ARCH-08 | Состояние | Раздельные контексты и неизменяемые константы; запрещён глобальный изменяемый рабочий буфер или глобальная последняя ошибка. |
+| ARCH-01 | `Sha256` | One-shot and streaming hashing, with no randomness or higher-layer dependencies. |
+| ARCH-02 | `HmacSha256` | HMAC over SHA-256 and prepared key state for repeated computations. |
+| ARCH-03 | `Pbkdf2` | PBKDF2-HMAC-SHA-256 over bytes; the caller supplies parameters. |
+| ARCH-04 | `PasswordHash` | Policy, format, salt, creation, verification, and rehash detection. |
+| ARCH-05 | `SecureRandom` | Buffer-fill contract with separate adapters for supported systems. |
+| ARCH-06 | Internal utilities | 32-bit arithmetic, hex, comparison, and clearing as needed; do not automatically make them public APIs. |
+| ARCH-07 | Dependencies | Acyclic imports; no application model, database, HTTP, session, logger, or hidden file/network actions in the core. |
+| ARCH-08 | State | Independent contexts and immutable constants; no global mutable work buffer or global last-error state. |
 
-**PORT-01.** Первый целевой диалект — FreeOberon с выбранной цепочкой трансляции. Сборка должна фиксировать версию и хеш бинарника компилятора, версию транслятора, C-компилятора, runtime и флаги. Поддержка иной версии FreeOberon либо другого диалекта добавляется только после прохождения полной матрицы проверок.
+**PORT-01.** The first target dialect is FreeOberon with a fixed toolchain. Builds MUST record compiler-binary version and hash, translator version, C compiler, runtime, and flags.
 
-**PORT-02.** До реализации арифметики разработчик должен проверить размеры `CHAR`, целых типов и `SET`, поведение сдвигов, преобразований, переполнений, проверки границ и порядок байтов. Результаты оформить в `docs/portability.md` и в исполняемых проверках. Нельзя предполагать, что `INTEGER` автоматически является unsigned 32-bit.
+**PORT-02.** Verify the sizes and behavior of `CHAR`, integer types, `SET`, shifts, conversions, overflow, bounds checks, and byte order. Record results in `docs/portability.md` and executable checks. Never assume `INTEGER` is unsigned 32-bit.
 
-**PORT-03.** Обязательные платформы выпуска: macOS arm64 и Linux x86_64. Windows и иные компиляторы — вне обязательств v1, пока не добавлены адаптер и CI. Переносимость на «любой Oberon» не заявляется.
+**PORT-03.** Required release platforms are macOS arm64 and Linux x86_64. No “any Oberon” portability claim is made.
 
-**PORT-04.** Все алгоритмические слова SHA-256 имеют ровно 32 бита. Сложение по модулю 2^32 и логический сдвиг реализуются без неопределённого signed overflow в генерируемом C и без выхода за диапазон языка. Допустимы доказуемо безопасные широкие промежуточные значения либо разложение на части. Порядок байтов задаётся явно, без reinterpret-cast зависимости от CPU. Отключение всех проверок безопасности не считается решением.
+**PORT-04.** SHA-256 words are exactly 32 bits. Addition modulo 2^32 and logical shifts MUST avoid undefined signed overflow in generated C and language-range violations. Byte order is explicit and CPU-independent.
 
-## 4. Данные, строки и память
+## 4. Data, strings, and memory
 
-**DATA-01.** Основные API принимают массив байтов и явную длину. Для FreeOberon допустим `ARRAY OF CHAR`, если каждый элемент используется как октет 0…255. Нулевой байт внутри пароля, ключа или соли — обычные данные. В алгоритмических модулях запрещены строковые функции поиска конца и копирования до NUL.
+**DATA-01.** Core APIs accept byte arrays and explicit lengths. `ARRAY OF CHAR` is allowed only when each element is treated as an octet 0…255. NUL bytes are ordinary data. Algorithmic modules MUST NOT use NUL-terminated string operations.
 
-**DATA-02.** Длины измеряются в байтах. При каждом вызове проверяется `0 <= length <= LEN(buffer)`. Для срезов проверять `offset <= LEN(buffer)` и `length <= LEN(buffer) - offset`, не вычислять потенциально переполняющееся `offset + length` до проверки. Аналогично проверяются длины hex, числа блоков и ёмкости выходов.
+**DATA-02.** Lengths are measured in bytes. Every call checks `0 <= length <= LEN(buffer)`. Slices check `offset <= LEN(buffer)` and `length <= LEN(buffer) - offset` before calculating a potentially overflowing sum. Hex lengths, block counts, and output capacities are checked likewise.
 
-**DATA-03.** Текстовое приложение передаёт UTF-8. Библиотека не меняет регистр, не удаляет пробелы, не нормализует Unicode и не перекодирует пароль. Разные последовательности байтов считаются разными паролями. Решение о нормализации должно быть единым для создания и проверки на уровне приложения и не меняться незаметно при обновлении.
+**DATA-03.** Text applications pass UTF-8. The library does not change case, trim whitespace, normalize Unicode, or recode passwords. Different byte sequences are different passwords. Normalization must be an explicit, consistent application decision.
 
-**DATA-04.** Высокоуровневый предел пароля — 1024 байта включительно. Пустой пароль допустим на уровне криптографии; приложение обязано отдельно запретить его при установке. Пароль длиннее предела отклоняется до KDF, никогда не обрезается. Низкоуровневые модули не наследуют этот продуктовый предел; их диапазоны задаются буферами, типами и стандартом.
+**DATA-04.** The high-level password limit is 1024 bytes inclusive. An empty password is cryptographically valid but applications MUST reject it at enrollment. Longer passwords are rejected before KDF and never truncated.
 
-**DATA-05.** Выходные буферы принадлежат вызывающему коду. Входы не изменяются. Перекрытие входов, выходов и контекста запрещается контрактом, если для конкретной процедуры не доказана поддержка; нельзя обещать обнаружение любого aliasing, недоступного средствами диалекта. Для корректных неперекрывающихся буферов ошибка обнуляет объявленный выходной диапазон; при неверной длине очищается только безопасно адресуемая часть, без выхода за массив. Для строкового выхода дополнительно возвращается длина 0 и NUL в первой позиции при ненулевой ёмкости.
+**DATA-05.** Output buffers belong to the caller and inputs are not modified. Overlap is forbidden unless explicitly supported. On error, the declared output range is cleared for valid non-overlapping buffers; invalid lengths clear only the safely addressable part.
 
-**DATA-06.** Секретные временные буферы и ключевые состояния очищаются на всех путях завершения. Необходимо проверить, что оптимизатор не удалил очистку. Если гарантированная очистка требует недоступного механизма runtime, ограничение явно документируется; нельзя обещать удаление всех копий из стека/регистров/GC. По возможности избегать динамических строк и лишних копий секретов.
+**DATA-06.** Secret temporary buffers and key state are cleared on every exit path. Verify that the optimizer has not removed clearing. Do not promise removal of every stack, register, or GC copy when the runtime cannot guarantee it.
 
-## 5. Криптографические примитивы
+## 5. Cryptographic primitives
 
-**SHA-01.** Реализация SHA-256 должна соответствовать [FIPS 180-4](https://csrc.nist.gov/pubs/fips/180-4/upd1/final). Поддерживаются пустые и бинарные сообщения, обработка частями, корректное дополнение и учёт длины. Константы снабжаются ссылкой на стандарт и проверяются эталонными векторами.
+**SHA-01.** SHA-256 MUST conform to [FIPS 180-4](https://csrc.nist.gov/pubs/fips/180-4/upd1/final), including empty and binary messages, streaming input, padding, and length accounting. Constants are checked with reference vectors.
 
-**SHA-02.** Потоковый интерфейс имеет состояния `Init → Update* → Final → finished`. Повторный `Final`, `Update` после завершения и работа до `Init` дают `InvalidState`; `Init` позволяет повторно использовать контекст. Нулевой `Update` в активном состоянии допустим. Ошибка обновления переводит контекст в состояние, требующее `Init`. Максимальная поддерживаемая суммарная длина фиксируется явно; превышение обнаруживается до переполнения счётчика, в том числе при потоковом вводе.
+**SHA-02.** The streaming state machine is `Init → Update* → Final → finished`. Repeated `Final`, `Update` after completion, and use before `Init` return `InvalidState`; `Init` permits reuse. An update error requires a new `Init`, and length overflow is detected before the counter wraps.
 
-**HMAC-01.** HMAC-SHA-256 обрабатывает короткий, пустой, ровно 64-байтный и длинный ключ по стандартному правилу HMAC. Результат — 32 байта. Усечённый MAC как публичная операция не входит в v1. Вектор с усечением из RFC проверяется по соответствующему префиксу полного результата. [RFC 4231](https://www.rfc-editor.org/rfc/rfc4231.html).
+**HMAC-01.** HMAC-SHA-256 handles empty, short, exactly 64-byte, and long keys according to HMAC. The result is 32 bytes. Truncated MAC is not a public v1 operation. See [RFC 4231](https://www.rfc-editor.org/rfc/rfc4231.html).
 
-**HMAC-02.** В PBKDF2 подготовка ключа, включая хеширование длинного пароля и состояния ipad/opad, выполняется один раз на derivation. Копируемые рабочие состояния независимы; никакой итерации нельзя наследовать изменённый контекст предыдущей итерации вместо подготовленного состояния.
+**HMAC-02.** PBKDF2 prepares the key once, including long-password hashing and ipad/opad state. Working states are independent; an iteration MUST NOT inherit a mutated previous-iteration context.
 
-**KDF-01.** PBKDF2 использует именно HMAC-SHA-256, четырёхбайтовый big-endian номер блока, корректные цепочки U и XOR. Поддерживается вывод нескольких блоков и неполный последний блок. Итерации должны быть положительными; нулевая длина производного ключа отклоняется. Проверяются предел стандарта и более строгие пределы представления/буфера реализации. [RFC 8018, §5.2](https://www.rfc-editor.org/rfc/rfc8018.html#section-5.2).
+**KDF-01.** PBKDF2 uses HMAC-SHA-256, a four-byte big-endian block index, correct U chains, and XOR. It supports multiple blocks and a partial final block. Iterations are positive and zero-length derived keys are rejected. See [RFC 8018, §5.2](https://www.rfc-editor.org/rfc/rfc8018.html#section-5.2).
 
-**KDF-02.** Низкоуровневый `Derive` допускает 1 и 2 итерации для векторов и иных сценариев. `PasswordHash.Create` никогда не наследует такие небезопасные настройки. В документации низкоуровневого API явно указано, что безопасность параметров — ответственность вызывающего кода.
+**KDF-02.** Low-level `Derive` permits one and two iterations for vectors and tests. `PasswordHash.Create` never inherits such unsafe settings. Low-level documentation states that parameter security is the caller's responsibility.
 
-**KDF-03.** Память KDF не растёт пропорционально числу итераций. Запрещены аллокации внутри каждой итерации и накопление U-значений; достаточно текущего значения и XOR-аккумулятора. Вычисление большой длины результата должно проверять арифметику до первого блока.
+**KDF-03.** KDF memory does not grow with the iteration count. No per-iteration allocation or accumulation of all U values is allowed; current U and an XOR accumulator are sufficient.
 
-## 6. Случайность
+## 6. Randomness
 
-**RNG-01.** Для каждого `Create`, включая rehash того же пароля, генерируется новая соль длиной 16 байт криптографическим источником ОС. Повтор соли теоретически возможен; требование — корректная независимая генерация, а не математическое обещание абсолютной уникальности.
+**RNG-01.** Every `Create`, including a rehash of the same password, generates a new 16-byte salt using the operating system's cryptographic source.
 
-**RNG-02.** Запрещены FreeOberon `Random`, время, PID, user ID, счётчик, GUID неизвестного происхождения, хеширование этих значений и любые fallback на них. Источник случайности нельзя заменять успешной выдачей нулевого буфера.
+**RNG-02.** FreeOberon `Random`, time, PID, user ID, counters, unknown-origin GUIDs, hashes of these values, and fallbacks to them are forbidden. A random source MUST NOT report success with an all-zero buffer.
 
-**RNG-03.** Платформенный адаптер возвращает успех только после заполнения всего диапазона. Частичная выдача, прерывания и отказ ОС обрабатываются по контракту выбранного системного API; retry ограничен и не создаёт бесконечного цикла. При невозможности получить байты `Create` возвращает `RandomUnavailable`, очищает выход и не создаёт запись.
+**RNG-03.** An adapter succeeds only after filling the entire range. Partial output, interruption, and OS failure follow the selected API contract with bounded retry. If bytes cannot be obtained, `Create` returns `RandomUnavailable`, clears output, and creates no record.
 
-**RNG-04.** Конкретный API ОС и его документированный контракт фиксируются в ADR до написания адаптера; проверяются и на macOS, и на Linux. Библиотека не реализует собственный PRNG/DRBG и не кэширует генерируемую последовательность между процессами.
+**RNG-04.** The OS API and its contract are recorded in an ADR before adapter implementation and tested on macOS and Linux. The library does not implement or cache its own PRNG/DRBG sequence between processes.
 
-**RNG-05.** Детерминированный источник разрешён только в тестовой сборке/тестовом адаптере. Он отсутствует в стандартном production-подключении. При пользовательском внедрении провайдера ответственность за CSPRNG описывается явно: библиотека не может статистическим тестом доказать его качество.
+**RNG-05.** A deterministic source is allowed only in test builds/test adapters and MUST be separated from production configuration.
 
-## 7. Политика и формат хранения v1
+## 7. Encoded format
 
-**FMT-01.** Канонический формат этой библиотеки:
+**FMT-01.** The canonical format is UTF-8 ASCII text:
 
 ```text
-oberon-pwh$1$pbkdf2-sha256$<iterations>$<salt-hex>$<dk-hex>
+oberon-pwh$1$pbkdf2-sha256$i=<decimal>$s=<lowercase-hex>$dk=<lowercase-hex>
 ```
 
-Это собственный версионированный формат, не PHC-совместимость по умолчанию. Формат из соседнего чата был эскизом; добавлены пространство имён и версия. Автоматический импорт эскиза не требуется: свидетельств записей в таком формате в проверенном коде нет.
+The version, algorithm, iteration count, salt, and derived key are explicit. The serializer emits one exact form; the parser does not silently normalize alternate forms.
 
-| Поле | Правило v1 |
-|---|---|
-| Разделитель | Только ASCII `$`; ровно 6 непустых полей |
-| Префикс | Буквально `oberon-pwh` |
-| Версия | Буквально `1` |
-| Алгоритм | Буквально `pbkdf2-sha256` |
-| iterations | ASCII десятичные цифры; без знака, пробелов и ведущих нулей; положительное число |
-| salt-hex | Ровно 32 символа `[0-9a-f]`: 16 байт |
-| dk-hex | Ровно 64 символа `[0-9a-f]`: 32 байта |
+**FMT-02.** Salt is exactly 16 bytes and the derived key exactly 32 bytes in v1. Hex is lowercase ASCII, two characters per byte. Iterations are decimal ASCII with no sign, leading zero, whitespace, or alternate base. Output capacity includes the terminating NUL.
 
-**FMT-02.** Длина строки равна `125 + число цифр iterations`. При 600000 — 131 байт. Жёсткий предел v1 — 133 байта без терминатора, буфер для всех допустимых записей — 134 элемента. Публичные константы: `MaxEncodedLength = 133`, `EncodedCapacity = 134`. Строка на выходе имеет явную длину и NUL после полезных байтов. На входе `encodedLen` не включает терминатор; NUL внутри объявленного диапазона запрещён, за диапазоном не читается.
+**FMT-03.** Parsing is bounded and rejects unknown versions/algorithms, missing or duplicate fields, malformed hex, overflow, trailing data, impossible lengths, and policy-disallowed values before KDF. Invalid input never falls back to another algorithm or default.
 
-**POL-01.** Значения по умолчанию: `targetIterations = 600000`, `minVerifyIterations = 600000`, `maxVerifyIterations = 1200000`. Жёсткий верхний предел реализации для высокоуровневой проверки — 10 000 000. Это выбранные ограничения v1 для управления нагрузкой, а не числовые требования RFC. Верхний предел сам по себе не гарантирует приемлемую задержку.
+**FMT-04.** Serialization is deterministic. Accepted input followed by canonical serialization is stable; parser acceptance MUST NOT silently broaden over time.
 
-**POL-02.** Политика задаётся явно при инициализации/вызове и не меняется глобально во время операций. Инварианты: `1 <= minVerifyIterations <= targetIterations <= maxVerifyIterations <= 10000000` и `targetIterations >= 600000`. Невалидная политика даёт `InvalidPolicy` до получения случайности/KDF. Автоматическое снижение стоимости из-за нагрузки запрещено.
+## 8. Policy and public API
 
-**POL-03.** Для миграции ранее созданных слабых PBKDF2-записей приложение может явно уменьшить `minVerifyIterations`; это не влияет на минимум создания и требует отдельного описания миграции. Значения вне разрешённого интервала проверки дают `PolicyRejected`, без KDF. Повышение лимита проверки после обновления политики должно быть осознанным и сопровождаться измерением нагрузки.
+**POL-01.** Policy contains minimum, target, maximum, and hard-limit iterations plus explicit salt, derived-key, and password limits. Invariants are `0 < min <= target <= max <= hardLimit`; invalid policy is rejected before randomness or KDF.
 
-**FMT-03.** Парсер проверяет весь формат, длины и числа до вычислений и аллокаций, зависящих от входа. При разборе числа используется проверка до умножения/сложения. Запрещены дополнительные поля, игнорирование хвоста, trim, нечувствительность к регистру, пустые поля и автоматическое исправление повреждённого ввода.
+**POL-02.** Verification rejects records above the hard limit and does not spend unbounded work. It accepts valid records at or below the configured maximum. A lower policy target never downgrades a more expensive stored hash.
 
-**FMT-04.** Структурно корректный заголовок с неизвестной версией даёт `UnsupportedVersion`, с неизвестным алгоритмом — `UnsupportedAlgorithm`; синтаксически повреждённые записи дают `InvalidFormat`. Число вне жёсткого/настроенного допустимого диапазона — `PolicyRejected`. Никакого fallback на устаревшую схему, MD5, SHA-1 или прямое сравнение пароля.
+**POL-03.** Rehash is recommended after successful verification when stored cost is below target. Migration mode may explicitly accept a bounded legacy format; legacy acceptance is never an implicit fallback.
 
-## 8. Публичный API и ошибки
-
-**API-01.** Основной интерфейс возвращает статус, не только BOOLEAN. Ниже логическая форма сигнатур; конкретное объявление типов и порядок параметров должны быть закреплены компилируемым `api.md`/примером до реализации. Псевдосигнатуры не выдаются за уже проверенный синтаксис FreeOberon.
+The core API is equivalent to:
 
 ```text
-Create(password, passwordLen, policy, randomSource,
-       outEncoded, OUT encodedLen) -> Status
-Verify(password, passwordLen, encoded, encodedLen, policy,
-       OUT matches, OUT needsRehash) -> Status
-NeedsRehash(encoded, encodedLen, policy, OUT needed) -> Status
-Sha256.Hash(data, dataLen, outDigest) -> Status
+PasswordHash.Create(password, passwordLen, policy, OUT encoded, OUT encodedLen) -> Status
+PasswordHash.Verify(password, passwordLen, encoded, encodedLen, policy,
+                    OUT matches, OUT needsRehash) -> Status
+PasswordHash.NeedsRehash(encoded, encodedLen, policy, OUT needed) -> Status
+Sha256.Hash(data, dataLen, OUT digest) -> Status
 Sha256.Init/Update/Final(context, ...) -> Status
-HmacSha256.Compute(key, keyLen, data, dataLen, outMac) -> Status
+HmacSha256.Compute(key, keyLen, data, dataLen, OUT mac) -> Status
 Pbkdf2.Derive(password, passwordLen, salt, saltLen,
-              iterations, dkLen, outKey) -> Status
+              iterations, dkLen, OUT key) -> Status
 ```
 
-**API-02.** Минимальные коды: `Ok`, `InvalidArgument`, `InvalidState`, `BufferTooSmall`, `PasswordTooLong`, `InvalidPolicy`, `InvalidFormat`, `UnsupportedVersion`, `UnsupportedAlgorithm`, `PolicyRejected`, `RandomUnavailable`, `InternalError`. Числовые значения стабильны после выпуска. `InternalError` не используется вместо конкретной обнаружимой ошибки и не обещает перехват всех аварий runtime.
+**API-01.** All parameters document units, ownership, ranges, output capacity, aliasing, clearing, and valid call order. Examples compile in CI.
 
-| Операция/событие | Результат |
+**API-02.** Stable status codes include `Ok`, `InvalidArgument`, `InvalidState`, `BufferTooSmall`, `PasswordTooLong`, `InvalidPolicy`, `InvalidFormat`, `UnsupportedVersion`, `UnsupportedAlgorithm`, `PolicyRejected`, `RandomUnavailable`, and `InternalError`. Any verification error returns failure with both output flags false; access is denied.
+
+**API-03.** Higher cost within policy is accepted and never downgraded. The library recommends rehash after success but never writes to storage. `NeedsRehash` parses without running KDF and does not prove that a password is correct.
+
+**API-04.** Statuses are returned to the caller. The library does not print, halt, assert on ordinary malformed external input, or log passwords, keys, or full hashes. Boolean wrappers are allowed only when every error means rejection.
+
+## 9. Comparison and performance
+
+**TIME-01.** Derived keys are compared across all 32 bytes without early exit or ordinary string comparison. The comparison loop must not branch or address memory based on secret-byte values.
+
+**TIME-02.** Review generated C and machine code for comparison, clearing, and critical operations under release flags on both target architectures. Timing measurements are evidence, not proof of constant-time behavior.
+
+**PERF-01.** Derivation cost scales as `O(passwordLen + iterations × ceil(dkLen / 32))` for a fixed short salt. A long password is not rehashed on every HMAC iteration.
+
+**PERF-02.** Before integration, benchmark release builds at 600,000 iterations, the policy maximum, and password lengths 0/64/65/1024 bytes. Record CPU, OS, tools, parameters, sample count, p50/p95, and memory. Do not benchmark automatically on user data.
+
+**PERF-03.** The initial deployment target is p95 verification time no greater than 500 ms on the target server without contention. This is a project goal, not an algorithm guarantee. Define and test budgets for planned concurrency and request limits; never silently lower the minimum.
+
+**PERF-04.** Independent operations remain isolated when calls are interleaved. Claim thread safety only after validating the runtime and adapter; otherwise document application-level serialization.
+
+## 10. Testing and quality gates
+
+Tests use synthetic data, not production databases or real passwords. Independent reference implementations are allowed in test tools, never in the production library.
+
+| Test ID | Required coverage |
 |---|---|
-| `Create`, успех | `Ok`, полная каноническая строка, корректная длина и терминатор |
-| `Create`, ошибка | Неуспешный статус, пустой выход; запись в БД запрещена |
-| `Verify`, пароль верен | `Ok`, `matches = TRUE`; `needsRehash` определяется политикой |
-| `Verify`, пароль неверен | `Ok`, `matches = FALSE`, `needsRehash = FALSE` |
-| `Verify`, ошибка | Неуспешный статус, оба флага `FALSE`; вход запрещён |
-| `NeedsRehash`, валидная допустимая запись | `Ok`; `needed = storedIterations < targetIterations` |
-| `NeedsRehash`, недопустимая запись | Неуспешный статус, `needed = FALSE`; это не означает «обновление не нужно» |
+| T-SHA | Standard vectors, empty input, `abc`, one million `a`, boundary message lengths, all byte values, and different chunkings. |
+| T-HMAC | RFC 4231 SHA-256 vectors, key lengths 0/63/64/65, binary data, and prepared-state reuse. |
+| T-KDF | Independent PBKDF2-HMAC-SHA-256 at c=1/2/4096/600000, boundary `dkLen`, empty/binary P/S, and invalid parameters. |
+| T-ARITH | Carries, high bits, shifts 0/1/31, boundary words, and length-counter limits. |
+| T-ROUNDTRIP | Create/verify, wrong password, fresh test salt, UTF-8, NUL, spaces, and password-boundary cases. |
+| T-FORMAT | Malformed delimiters/fields, case/hex errors, extra data, signs, leading zeros, huge integers, unknown version/algorithm, and canonical round-trip. |
+| T-LIMIT | Passwords 1023/1024/1025, output capacities 0/1/130…134, exact/insufficient buffers, invalid lengths, and guard bytes. |
+| T-POLICY | All min/target/max/hard-limit boundaries, invalid policies, migration mode, and no downgrade. |
+| T-FAIL | RNG failure/partial output, malformed input, invalid SHA state, post-error calls, clearing, and output initialization. |
+| T-COST | Invalid format/limits rejected before KDF; invalid policy and small output rejected before RNG. |
+| T-ISOLATION | Interleaved independent contexts and Create/Verify calls; declared concurrency behavior. |
+| T-TIMING | First/middle/last-byte mismatches, machine-code review, and clearing under optimization. |
+| T-FUZZ | At least 100,000 reproducible parser/API mutations within a bounded execution budget and without uncontrolled expensive KDF calls. |
+| T-BUILD | Clean debug/release builds of examples and tests from a separate checkout on both target platforms. |
 
-**API-03.** Более высокая стоимость в пределах политики принимается и не вызывает downgrade. Для успешной проверки обновление лишь рекомендуется; библиотека не пишет в хранилище. `NeedsRehash` разбирает запись без вычисления KDF, поэтому само по себе не доказывает правильность пароля.
+**TEST-01.** PBKDF2 fixtures record provenance, tool versions, and hex inputs. Use independent implementations such as Python `hashlib.pbkdf2_hmac` and Go `crypto/pbkdf2`; RFC 6070 is PBKDF2-HMAC-SHA-1 and is not a SHA-256 vector set.
 
-**API-04.** Статусы выдаются вызывающему коду. Библиотека не печатает в stdout/stderr, не вызывает `HALT`/`ASSERT` на обычном некорректном внешнем вводе, не пишет пароли, ключи и полные хеши в лог. Необязательные BOOLEAN-обёртки допускаются только поверх основного API, с чётким правилом: любая ошибка означает отказ.
+**TEST-02.** Include at least 1,000 deterministic differential SHA/HMAC/PBKDF2 cases with small iteration counts, plus a bounded production-cost set. Preserve seeds and regressions. Check statuses and memory boundaries, not only happy-path outputs.
 
-**API-05.** Публичные типы не раскрывают внутреннее изменяемое состояние без необходимости. Для каждого параметра документируются единицы длины, владение, разрешённые диапазоны, ёмкость выхода, aliasing, очистка и допустимая последовательность вызовов. Код примеров обязательно компилируется в CI.
+**TEST-03.** Debug and release outputs must match. Run available sanitizers on generated C, record runtime limitations, and do not treat coverage as a replacement for vectors, boundary tests, or review.
 
-## 9. Сравнение и устойчивость к нагрузке
+**TEST-04.** Test the real RNG adapter and its error handling on both operating systems by replacing the system layer. A small no-repeat smoke test is not evidence of a CSPRNG.
 
-**TIME-01.** Производные ключи сравниваются по всем 32 байтам, без раннего выхода по первому несовпадению и без стандартного сравнения строк. В сравнивающем цикле не должно быть ветвлений/адресации, зависящих от значений секретных байтов. Публичные длины и параметры могут определять количество работы.
+## 11. Development and release
 
-**TIME-02.** Проверить сгенерированный C и машинный код сравнения, очистки и критических операций при release-флагах на обеих целевых архитектурах. Измерения времени являются дополнительным сигналом, а не доказательством constant-time. Нельзя обещать одинаковое время всей функции: парсер, длины и число итераций влияют на длительность.
+**DEV-01.** Ship the library as a standalone repository with `src/`, `platform/`, `tests/`, `examples/`, `docs/`, a license, changelog, build instructions, and a support matrix. Installation must not require application files.
 
-**PERF-01.** Стоимость derivation должна масштабироваться как `O(passwordLen + iterations × ceil(dkLen / 32))` при фиксированном коротком salt высокоуровневого API. Длинный пароль не должен заново хешироваться на каждой итерации HMAC.
+**DEV-02.** Minimum examples cover creating a hash, handling every verification outcome, rehashing after successful verification, and hashing binary data. Error handling is required even in short examples; deterministic test RNG is never used in a production example.
 
-**PERF-02.** До интеграции измерить release-сборку: создание/проверку с 600000 итераций, с верхним разрешённым политикой значением, паролями 0/64/65/1024 байта; отдельно холодный CGI-запуск и прогретый процесс. Зафиксировать CPU, ОС, инструменты, параметры, число замеров, p50/p95 и память. Тесты скорости не запускаются автоматически на пользовательских данных.
+**DEV-03.** Record major decisions as short ADRs covering arithmetic, platform/randomness, format/API, policy/limits, clearing, and concurrency. Comments explain invariants and standards. Do not modify algorithms “for extra strength” or add unverified micro-optimizations.
 
-**PERF-03.** Предварительный бюджет развёртывания: p95 одной проверки с целевой стоимостью не более 500 мс на целевом сервере без конкуренции; это проектная цель, которую ещё нужно подтвердить, не гарантия алгоритма. Для допуска в эксплуатацию также задать и проверить бюджет при плановой параллельности и лимит запросов. Если бюджет недостижим — оптимизировать, менять инфраструктуру или пересматривать ограничение на алгоритм; не снижать минимум незаметно.
+**DEV-04.** CI runs for every algorithm, format, API, and build change. Releases are tied to source, tool versions, and test results. Optional analysis tools and fixture generators are not runtime dependencies.
 
-**PERF-04.** Состояния независимых операций не смешиваются даже при чередовании вызовов. Thread safety заявляется только при подтверждении runtime и адаптера; иначе явно документируется сериализация на уровне приложения. Изоляция отдельных процессов не считается доказательством безопасности потоков одного процесса.
+**DEV-05.** Before production release, an appropriately qualified person independent of the author must review the cryptographic implementation and parser. Tests and AI review alone do not make a cryptographic library audited. Until then, releases are marked experimental.
 
-## 10. Проверки и критерии качества
+**DEV-06.** Version public API changes. A format change requires a new format version, while increasing `targetIterations` does not. Document legacy verification, support removal, migration, vulnerability reporting, and security-release procedures.
 
-Тесты выполняются на синтетических данных, без рабочей БД и реальных паролей. Внешние эталонные реализации допустимы в тестовых инструментах, но не в рабочей библиотеке.
+## 12. Implementation milestones and acceptance
 
-| ID тестов | Обязательная проверка | Покрываемые требования |
-|---|---|---|
-| T-SHA | Стандартные векторы, пустое сообщение, `abc`, миллион `a`; длины 55/56/63/64/65 и 119/120/127/128/129; все значения байта; разные разбиения одного сообщения | SHA-01/02, PORT-04 |
-| T-HMAC | Все применимые SHA-256-векторы RFC 4231; дополнительно ключи 0/63/64/65 байт, бинарные данные, повторное использование подготовленного состояния | HMAC-01/02 |
-| T-KDF | Сверка с независимым PBKDF2-HMAC-SHA-256: c=1/2/4096/600000, dkLen=1/31/32/33/64/65, пустые и бинарные P/S, пароль >64 байт; отдельно отрицательные/нулевые параметры | KDF-01/02/03 |
-| T-ARITH | Переносы, старший бит, сдвиги 0/1/31, значения 0/7fffffff/80000000/ffffffff, счётчик длины у предела через тестовый доступ | PORT-02/04, SHA-02 |
-| T-ROUNDTRIP | Создание → проверка, неверный пароль, повторная соль от тестового источника, UTF-8, NUL, сохранение пробелов, различие паролей после 30/64/255-го байта | DATA-01/03/04, API-02 |
-| T-FORMAT | Каждый разделитель/поле, неверный регистр/hex, лишние байты, знаки, ведущие нули, huge integer, неизвестная версия/алгоритм; каноническая обратная сериализация | FMT-01…04 |
-| T-LIMIT | Пароли 1023/1024/1025, буфер выхода 0/1/130/131/132/133/134, точная и недостаточная ёмкость, некорректные длины, сторожевые байты вокруг буферов | DATA-02/04/05, FMT-02 |
-| T-POLICY | Границы min/target/max/hard limit, невалидная политика, явный режим миграции, отсутствие понижения более дорогого хеша | POL-01…03, API-03 |
-| T-FAIL | Отказ/частичная выдача RNG, повреждение входа, ошибочное состояние SHA, повторный вызов после ошибки, очистка и начальные значения OUT | RNG-03, DATA-05/06, API-02/04 |
-| T-COST | Невалидный формат/лимит отклоняются до KDF; невалидная политика и малая ёмкость отклоняются до RNG; проверить счётчиками тестовых зависимостей | FMT-03, POL-02, PERF-01 |
-| T-ISOLATION | Чередование независимых SHA/HMAC-контекстов; независимые вызовы Create/Verify; тесты на заявленную конкурентность | ARCH-08, PERF-04 |
-| T-TIMING | Несовпадения первого/среднего/последнего байта; ревью машинного кода; очистка при оптимизации | TIME-01/02, DATA-06 |
-| T-FUZZ | Не менее 100000 воспроизводимых мутаций/случайных записей для парсера и API с бюджетом выполнения, без неконтролируемого запуска дорогого KDF | SEC-02, FMT-03, DATA-02 |
-| T-BUILD | Чистая сборка примеров и тестов из отдельного checkout на двух целевых платформах; debug и release | PORT-01/03, ARCH-07, API-05 |
+1. **G0 — contract and platform:** dialect, types, API, arithmetic/RNG ADRs, OS matrix, and format are fixed; a minimal interface example compiles.
+2. **G1 — SHA-256:** T-SHA and T-ARITH pass in debug/release; streaming state and length overflow are verified.
+3. **G2 — HMAC and PBKDF2:** T-HMAC/T-KDF and independent differential tests pass; long keys and multiple output blocks are covered.
+4. **G3 — format, policy, and RNG:** negative, fault-injection, fuzz, and two-platform tests pass; no unsafe fallback exists.
+5. **G4 — PasswordHash:** end-to-end contracts, buffers, rehash, errors, reproducible benchmarks, and generated-code analysis are complete.
+6. **G5 — library release:** independent review is closed, clean-checkout builds are reproducible, examples and limitations are published, and all required tests pass on both operating systems.
 
-**TEST-01.** Для PBKDF2 эталонные значения сохраняются как fixtures с происхождением, версиями инструментов и входами в hex. Использовать независимые реализации, например Python `hashlib.pbkdf2_hmac` и Go `crypto/pbkdf2`, с проверкой фактической независимости backend. Не использовать собственный код для генерации всех ожидаемых значений. RFC 6070 содержит PBKDF2-HMAC-SHA-1 и не является набором SHA-256-векторов.
+**DONE-01.** Each requirement ID in a release has a link to code/documentation and a test or manual-review record. Unsupported platforms, unexplained reference mismatches, crashes on external input, and open material review findings block G5.
 
-**TEST-02.** Минимум 1000 детерминированных differential-кейсов SHA/HMAC/PBKDF2 с малыми итерациями; дорогие production-параметры вынести в отдельный ограниченный набор. Seeds и найденные сбои сохраняются. Обязательны проверки статуса и отсутствия изменений за границами выхода, а не только совпадение happy-path результата.
+## 13. Sources and design decisions
 
-**TEST-03.** Debug и release должны выдавать одинаковые результаты. Сгенерированный C проверяется sanitizers, доступными в цепочке; ограничения runtime фиксируются, необъяснённые сообщения не игнорируются. Процент покрытия не заменяет векторы, проверки границ и ревью.
+Checked 19 September 2026:
 
-**TEST-04.** На обеих ОС проверить реальный RNG-адаптер и обработку его ошибок с подменой системного слоя. Тест отсутствия повторов на малой выборке допустим только как smoke test, не как доказательство CSPRNG.
-
-## 11. Разработка, поставка и сопровождение
-
-**DEV-01.** Библиотека поставляется отдельным каталогом/репозиторием с `src/`, `platform/`, `tests/`, `examples/`, `docs/`, лицензией, changelog, инструкциями сборки и поддерживаемой матрицей. Конкретное имя пакета фиксируется до публикации. Установка не требует файлов прикладного проекта.
-
-**DEV-02.** Минимальные примеры: создать хеш; проверить с обработкой всех классов исходов; после успешной проверки выполнить rehash; хешировать бинарные данные. Проверка ошибок обязательна даже в коротких примерах. Тестовый deterministic RNG не используется в примере для production.
-
-**DEV-03.** Каждое существенное решение — короткий ADR: арифметика, платформа/случайность, формат/API, policy/лимиты, очистка и конкурентность. Комментарии объясняют инварианты и связь со стандартом. Запрещены самодельные изменения алгоритма «для усиления» и непроверенные микрооптимизации.
-
-**DEV-04.** CI запускается на каждом изменении алгоритмов, формата, API и сборки. Release привязан к исходникам, версиям инструментов и результатам проверок. Необязательные средства анализа/генераторы fixtures не становятся runtime-зависимостью. Лицензии заимствованных векторов/кода и авторство проверяются перед публикацией.
-
-**DEV-05.** Перед production-выпуском требуется независимое от автора ревью криптографической реализации и парсера человеком с соответствующей компетенцией. Набор тестов и ИИ-ревью сами по себе не дают статуса проверенной криптобиблиотеки. До такого ревью выпуск помечается experimental.
-
-**DEV-06.** Изменения публичного API версионируются; изменение формата требует новой версии формата, но увеличение targetIterations — нет. Политика проверки старых записей, предупреждение об удалении поддержки и путь миграции документируются. В проекте предусмотрен контакт для сообщений об уязвимостях и порядок security-релиза.
-
-## 12. Порядок реализации и приёмка
-
-1. **G0 — контракт и платформа.** Зафиксированы диалект, типы, API, ADR арифметики/RNG, матрица ОС и формат. Компилируется минимальный пример интерфейса. Проверены формула длины и границы policy.
-2. **G1 — SHA-256.** Проходят T-SHA и T-ARITH в debug/release; проверено потоковое состояние и переполнение длины.
-3. **G2 — HMAC и PBKDF2.** Проходят T-HMAC/T-KDF и независимые differential-тесты, проверены длинные ключи и несколько выходных блоков. Оптимизация разрешена только с повторной сверкой.
-4. **G3 — формат, policy и RNG.** Проходят негативные тесты, fault injection, fuzzing и тесты обеих платформ; нет небезопасного fallback.
-5. **G4 — PasswordHash.** Проходят end-to-end контракты, буферы, rehash и ошибки. Есть воспроизводимый benchmark и анализ сгенерированного кода.
-6. **G5 — библиотечный релиз.** Независимое ревью закрыто, воспроизводимая сборка из чистого checkout, примеры и ограничения опубликованы, все обязательные тесты зелёные на обеих ОС.
-**DONE-01.** Для каждого ID требования в поставке есть ссылка на код/документ и тест либо протокол ручной проверки. Матрица выше — минимальный набор; составитель итогового отчёта покрывает также ARCH, SEC и DEV. Непроверенная поддержка платформы, необъяснённые расхождения с эталоном, аварии от внешнего ввода и открытые существенные замечания ревью блокируют G5.
-
-## 13. Источники и характер решений
-
-Проверены 19.09.2026:
-
-- [FIPS 180-4 — Secure Hash Standard](https://csrc.nist.gov/pubs/fips/180-4/upd1/final) — определение SHA-256.
+- [FIPS 180-4 — Secure Hash Standard](https://csrc.nist.gov/pubs/fips/180-4/upd1/final) — SHA-256 definition.
 - [RFC 8018, §5.2](https://www.rfc-editor.org/rfc/rfc8018.html#section-5.2) — PBKDF2.
-- [RFC 4231](https://www.rfc-editor.org/rfc/rfc4231.html) — тестовые векторы HMAC-SHA-256.
-- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) — выбор password hashing и актуальный ориентир стоимости.
+- [RFC 4231](https://www.rfc-editor.org/rfc/rfc4231.html) — HMAC-SHA-256 test vectors.
+- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) — password-hashing guidance and cost reference.
 
-Формат `oberon-pwh`, статусы API, 1024-байтный предел пароля, верхние пределы итераций, матрица ОС, бюджет 500 мс и количественные пороги тестов — проектные решения этой спецификации. Перед их изменением требуется оценить совместимость, нагрузку и соответствующие тесты. Перед выпуском следует повторно проверить актуальность рекомендаций по стоимости KDF.
+The `oberon-pwh` format, API statuses, 1024-byte password limit, iteration ceilings, OS matrix, 500 ms budget, and quantitative test thresholds are project decisions in this specification. Reassess compatibility, load, and tests before changing them, and re-check current KDF-cost guidance before release.

@@ -1,17 +1,17 @@
 # Oberon Password Hashing
 
-Независимая библиотека на FreeOberon для хранения и проверки паролей через PBKDF2-HMAC-SHA-256.
+An independent FreeOberon library for storing and verifying passwords with PBKDF2-HMAC-SHA-256.
 
-Проект находится на стадии требований: исходной реализации ещё нет. Полная спецификация с API, форматом хранения, требованиями к случайности, переносимости и тестам находится в [docs/requirements.md](docs/requirements.md).
+This project is currently at the requirements stage; no implementation has been released yet. The complete specification, including the API, storage format, randomness, portability, and testing requirements, is available in [docs/requirements.md](docs/requirements.md).
 
-Планируемая структура реализации:
+Planned repository layout:
 
 ```text
-src/       криптографическое ядро и публичный API
-platform/  адаптеры криптографической случайности для ОС
-tests/     векторы, негативные и differential-тесты
-examples/  компилируемые примеры использования
-docs/      требования, ADR и документация переносимости
+src/       cryptographic core and public API
+platform/  operating-system adapters for cryptographic randomness
+tests/     vectors, negative tests, and differential tests
+examples/  compilable usage examples
+docs/      requirements, ADRs, and portability documentation
 ```
 
-До независимого криптографического ревью выпуск не должен позиционироваться как production-ready.
+Until an independent cryptographic review has been completed, this project must not be presented as production-ready.
