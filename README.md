@@ -1,19 +1,18 @@
 # Oberon Password Hashing
 
-An independent FreeOberon library for storing and verifying passwords with PBKDF2-HMAC-SHA-256.
+Experimental password-storage library for FreeOberon. It implements SHA-256, HMAC-SHA-256, PBKDF2-HMAC-SHA-256, strict `oberon-pwh` records, and password rehash decisions.
 
-Documentation: [English](docs/requirements.md) · [Русский](docs/requirements.ru.md)
+This is not an audited cryptographic library. Do not describe it as production-ready until an independent cryptographic review is complete.
 
-This project is currently at the requirements stage; no implementation has been released yet. The complete specification, including the API, storage format, randomness, portability, and testing requirements, is available in [docs/requirements.md](docs/requirements.md).
+## Quick start
 
-Planned repository layout:
-
-```text
-src/       cryptographic core and public API
-platform/  operating-system adapters for cryptographic randomness
-tests/     vectors, negative tests, and differential tests
-examples/  compilable usage examples
-docs/      requirements, ADRs, and portability documentation
+```sh
+export FREEOBERON_HOME=/path/to/FreeOberon
+./scripts/test.sh
 ```
 
-Until an independent cryptographic review has been completed, this project must not be presented as production-ready.
+The script builds in a temporary directory, so generated C and symbol files never enter the source tree. It supports macOS arm64/x86_64 and Linux x86_64/aarch64 when the matching FreeOberon target is installed.
+
+`PasswordHash.DefaultPolicy` uses 600,000 PBKDF2 iterations. The canonical v1 representation requires `PasswordHash.EncodedCapacity` (134 bytes, including the terminating NUL).
+
+Documentation: [English contract](docs/requirements.md) · [Русский](docs/requirements.ru.md) · [build](docs/build.md) · [portability](docs/portability.md)
