@@ -9,9 +9,15 @@ TYPE Context* = RECORD
   ready: BOOLEAN
 END;
 
-PROCEDURE Prepare*(VAR c: Context; IN key: ARRAY OF CHAR; keyLen: INTEGER): INTEGER;
-VAR k, pad: ARRAY Sha256.BlockLength OF CHAR;
-  digest: ARRAY Sha256.DigestLength OF CHAR;
+PROCEDURE Clear*(VAR c: Context);
+BEGIN
+  Sha256.Clear(c.inner); Sha256.Clear(c.outer);
+  c.ready := FALSE
+END Clear;
+
+PROCEDURE Prepare*(VAR c: Context; IN key: ARRAY OF SHORTCHAR; keyLen: INTEGER): INTEGER;
+VAR k, pad: ARRAY Sha256.BlockLength OF SHORTCHAR;
+  digest: ARRAY Sha256.DigestLength OF SHORTCHAR;
   i, status: INTEGER;
 BEGIN
   c.ready := FALSE;
@@ -38,9 +44,9 @@ BEGIN
   RETURN status
 END Prepare;
 
-PROCEDURE ComputePrepared*(IN c: Context; IN data: ARRAY OF CHAR; dataLen: INTEGER; VAR mac: ARRAY OF CHAR): INTEGER;
+PROCEDURE ComputePrepared*(IN c: Context; IN data: ARRAY OF SHORTCHAR; dataLen: INTEGER; VAR mac: ARRAY OF SHORTCHAR): INTEGER;
 VAR inner, outer: Sha256.Context;
-  tmp: ARRAY MacLength OF CHAR;
+  tmp: ARRAY MacLength OF SHORTCHAR;
   status: INTEGER;
 BEGIN
   IF LEN(mac) < MacLength THEN PasswordBytes.Clear(mac, LEN(mac)); RETURN PasswordStatus.BufferTooSmall END;
@@ -50,15 +56,17 @@ BEGIN
   IF status = PasswordStatus.Ok THEN status := Sha256.Final(inner, tmp) END;
   IF status = PasswordStatus.Ok THEN status := Sha256.Update(outer, tmp, LEN(tmp)) END;
   IF status = PasswordStatus.Ok THEN status := Sha256.Final(outer, mac) ELSE PasswordBytes.Clear(mac, MacLength) END;
+  Sha256.Clear(inner); Sha256.Clear(outer);
   PasswordBytes.Clear(tmp, LEN(tmp));
   RETURN status
 END ComputePrepared;
 
-PROCEDURE Compute*(IN key: ARRAY OF CHAR; keyLen: INTEGER; IN data: ARRAY OF CHAR; dataLen: INTEGER; VAR mac: ARRAY OF CHAR): INTEGER;
+PROCEDURE Compute*(IN key: ARRAY OF SHORTCHAR; keyLen: INTEGER; IN data: ARRAY OF SHORTCHAR; dataLen: INTEGER; VAR mac: ARRAY OF SHORTCHAR): INTEGER;
 VAR c: Context; status: INTEGER;
 BEGIN
   status := Prepare(c, key, keyLen);
   IF status = PasswordStatus.Ok THEN status := ComputePrepared(c, data, dataLen, mac) ELSE PasswordBytes.Clear(mac, LEN(mac)) END;
+  Clear(c);
   RETURN status
 END Compute;
 

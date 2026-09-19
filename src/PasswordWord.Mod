@@ -15,12 +15,16 @@ BEGIN RETURN SHORT(x DIV Base) END Hi;
 PROCEDURE Lo*(x: Word): INTEGER;
 BEGIN RETURN SHORT(x MOD Base) END Lo;
 
-PROCEDURE FromBytes*(a, b, c, d: CHAR): Word;
+PROCEDURE FromBytes*(a, b, c, d: SHORTCHAR): Word;
 BEGIN RETURN LONG(ORD(a) * 256 + ORD(b)) * Base + ORD(c) * 256 + ORD(d) END FromBytes;
 
-PROCEDURE PutBytes*(x: Word; VAR a, b, c, d: CHAR);
+PROCEDURE PutBytes*(x: Word; VAR a, b, c, d: SHORTCHAR);
 VAR hi, lo: INTEGER;
-BEGIN hi := Hi(x); lo := Lo(x); a := CHR(hi DIV 256); b := CHR(hi MOD 256); c := CHR(lo DIV 256); d := CHR(lo MOD 256) END PutBytes;
+BEGIN
+  hi := Hi(x); lo := Lo(x);
+  a := SYSTEM.VAL(SHORTCHAR, hi DIV 256); b := SYSTEM.VAL(SHORTCHAR, hi MOD 256);
+  c := SYSTEM.VAL(SHORTCHAR, lo DIV 256); d := SYSTEM.VAL(SHORTCHAR, lo MOD 256)
+END PutBytes;
 
 PROCEDURE Add*(a, b: Word): Word;
 VAR hi, lo: INTEGER;

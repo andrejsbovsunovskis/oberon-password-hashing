@@ -6,7 +6,7 @@ CONST DigestLength* = 32; BlockLength* = 64;
 
 TYPE Context* = RECORD
   h: ARRAY 8 OF W.Word;
-  block: ARRAY BlockLength OF CHAR;
+  block: ARRAY BlockLength OF SHORTCHAR;
   used: INTEGER;
   bytesHi, bytesLo: W.Word;
   initialized, finished: BOOLEAN
@@ -75,7 +75,7 @@ BEGIN
   RETURN C(0, 0)
 END K;
 
-PROCEDURE Transform(VAR c: Context; IN b: ARRAY OF CHAR);
+PROCEDURE Transform(VAR c: Context; IN b: ARRAY OF SHORTCHAR);
 VAR w: ARRAY 64 OF W.Word;
   a, bb, cc, d, e, f, g, h, t1, t2: W.Word;
   i: INTEGER;
@@ -110,20 +110,32 @@ BEGIN
   RETURN PasswordStatus.Ok
 END Init;
 
-PROCEDURE AddLength(VAR c: Context; n: INTEGER): BOOLEAN;
-VAR q, old: W.Word;
+PROCEDURE Clear*(VAR c: Context);
+VAR i: INTEGER;
 BEGIN
-  W.Set(q, n DIV 65536, n MOD 65536); old := c.bytesLo; c.bytesLo := W.Add(c.bytesLo, q);
-  IF W.Hi(c.bytesLo) < W.Hi(old) THEN c.bytesHi := W.Add(c.bytesHi, C(0, 1)) END;
-  RETURN W.Hi(c.bytesHi) < 8192
+  PasswordBytes.Clear(c.block, LEN(c.block));
+  i := 0;
+  WHILE i < LEN(c.h) DO W.Set(c.h[i], 0, 0); INC(i) END;
+  W.Set(c.bytesHi, 0, 0); W.Set(c.bytesLo, 0, 0);
+  c.used := 0; c.initialized := FALSE; c.finished := FALSE
+END Clear;
+
+PROCEDURE AddLength(VAR c: Context; n: INTEGER): BOOLEAN;
+VAR q, old, newLo, newHi: W.Word;
+BEGIN
+  W.Set(q, n DIV 65536, n MOD 65536); old := c.bytesLo; newLo := W.Add(c.bytesLo, q); newHi := c.bytesHi;
+  IF W.Hi(newLo) < W.Hi(old) THEN newHi := W.Add(newHi, C(0, 1)) END;
+  IF W.Hi(newHi) >= 8192 THEN RETURN FALSE END;
+  c.bytesLo := newLo; c.bytesHi := newHi;
+  RETURN TRUE
 END AddLength;
 
-PROCEDURE Update*(VAR c: Context; IN data: ARRAY OF CHAR; dataLen: INTEGER): INTEGER;
+PROCEDURE Update*(VAR c: Context; IN data: ARRAY OF SHORTCHAR; dataLen: INTEGER): INTEGER;
 VAR pos, take: INTEGER;
 BEGIN
   IF ~c.initialized OR c.finished THEN RETURN PasswordStatus.InvalidState END;
-  IF ~PasswordBytes.Valid(data, dataLen) THEN RETURN PasswordStatus.InvalidArgument END;
-  IF ~AddLength(c, dataLen) THEN RETURN PasswordStatus.InvalidArgument END;
+  IF ~PasswordBytes.Valid(data, dataLen) THEN Clear(c); RETURN PasswordStatus.InvalidArgument END;
+  IF ~AddLength(c, dataLen) THEN Clear(c); RETURN PasswordStatus.InvalidArgument END;
   pos := 0;
   WHILE pos < dataLen DO
     take := BlockLength - c.used;
@@ -135,9 +147,9 @@ BEGIN
   RETURN PasswordStatus.Ok
 END Update;
 
-PROCEDURE Final*(VAR c: Context; VAR digest: ARRAY OF CHAR): INTEGER;
+PROCEDURE Final*(VAR c: Context; VAR digest: ARRAY OF SHORTCHAR): INTEGER;
 VAR i: INTEGER; bitHi, bitLo: W.Word;
-  a, b, d, e: CHAR;
+  a, b, d, e: SHORTCHAR;
 BEGIN
   IF LEN(digest) < DigestLength THEN PasswordBytes.Clear(digest, LEN(digest)); RETURN PasswordStatus.BufferTooSmall END;
   IF ~c.initialized OR c.finished THEN PasswordBytes.Clear(digest, DigestLength); RETURN PasswordStatus.InvalidState END;
@@ -159,7 +171,7 @@ BEGIN
   RETURN PasswordStatus.Ok
 END Final;
 
-PROCEDURE Hash*(IN data: ARRAY OF CHAR; dataLen: INTEGER; VAR digest: ARRAY OF CHAR): INTEGER;
+PROCEDURE Hash*(IN data: ARRAY OF SHORTCHAR; dataLen: INTEGER; VAR digest: ARRAY OF SHORTCHAR): INTEGER;
 VAR c: Context; status: INTEGER;
 BEGIN
   IF LEN(digest) < DigestLength THEN PasswordBytes.Clear(digest, LEN(digest)); RETURN PasswordStatus.BufferTooSmall END;

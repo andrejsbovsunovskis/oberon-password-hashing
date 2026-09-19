@@ -4,7 +4,7 @@ IMPORT Platform, SYSTEM;
 
 (* Unix /dev/urandom is the operating-system CSPRNG interface on the supported targets. *)
 
-PROCEDURE Fill*(VAR buffer: ARRAY OF CHAR; length: INTEGER): BOOLEAN;
+PROCEDURE Fill*(VAR buffer: ARRAY OF SHORTCHAR; length: INTEGER): BOOLEAN;
 VAR fd, error, got, pos, tries, zeros: INTEGER;
   path: ARRAY 32 OF SHORTCHAR;
 BEGIN

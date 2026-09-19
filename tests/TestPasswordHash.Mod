@@ -3,8 +3,8 @@ MODULE TestPasswordHash;
 IMPORT PasswordHash;
 
 VAR policy: PasswordHash.Policy;
-  password: ARRAY 7 OF CHAR;
-  encoded: ARRAY PasswordHash.EncodedCapacity OF CHAR;
+  password: ARRAY 7 OF SHORTCHAR;
+  encoded: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
   encodedLen, status: INTEGER;
   matches, needsRehash: BOOLEAN;
 

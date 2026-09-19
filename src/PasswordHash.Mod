@@ -1,16 +1,16 @@
 MODULE PasswordHash;
 
-IMPORT PasswordStatus, PasswordBytes, Pbkdf2, SecureRandom;
+IMPORT SYSTEM, PasswordStatus, PasswordBytes, Pbkdf2, SecureRandom;
 
 CONST SaltLength* = 16; DerivedKeyLength* = 32; PasswordLimit* = 1024;
-  EncodedCapacity* = 134;
+  EncodedCapacity* = 143;
 
 TYPE Policy* = RECORD
   minIterations*, targetIterations*, maxIterations*, hardLimit*: INTEGER;
   passwordLimit*, saltLength*, derivedKeyLength*: INTEGER
 END;
 
-TYPE Record = RECORD iterations: INTEGER; salt: ARRAY SaltLength OF CHAR; key: ARRAY DerivedKeyLength OF CHAR END;
+TYPE Record = RECORD iterations: INTEGER; salt: ARRAY SaltLength OF SHORTCHAR; key: ARRAY DerivedKeyLength OF SHORTCHAR END;
 
 PROCEDURE DefaultPolicy*(VAR p: Policy);
 BEGIN
@@ -27,16 +27,16 @@ BEGIN
     (p.saltLength = SaltLength) & (p.derivedKeyLength = DerivedKeyLength)
 END ValidPolicy;
 
-PROCEDURE ClearOutput(VAR encoded: ARRAY OF CHAR; VAR encodedLen: INTEGER);
+PROCEDURE ClearOutput(VAR encoded: ARRAY OF SHORTCHAR; VAR encodedLen: INTEGER);
 BEGIN PasswordBytes.Clear(encoded, LEN(encoded)); encodedLen := 0 END ClearOutput;
 
-PROCEDURE AppendChar(VAR out: ARRAY OF CHAR; VAR pos: INTEGER; ch: CHAR): BOOLEAN;
+PROCEDURE AppendChar(VAR out: ARRAY OF SHORTCHAR; VAR pos: INTEGER; ch: SHORTCHAR): BOOLEAN;
 BEGIN
   IF pos >= LEN(out) - 1 THEN RETURN FALSE END;
   out[pos] := ch; INC(pos); RETURN TRUE
 END AppendChar;
 
-PROCEDURE AppendText(VAR out: ARRAY OF CHAR; VAR pos: INTEGER; IN text: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE AppendText(VAR out: ARRAY OF SHORTCHAR; VAR pos: INTEGER; IN text: ARRAY OF SHORTCHAR): BOOLEAN;
 VAR i: INTEGER;
 BEGIN
   i := 0;
@@ -47,20 +47,24 @@ BEGIN
   RETURN TRUE
 END AppendText;
 
-PROCEDURE AppendDecimal(VAR out: ARRAY OF CHAR; VAR pos: INTEGER; n: INTEGER): BOOLEAN;
-VAR digits: ARRAY 10 OF CHAR; count: INTEGER;
+PROCEDURE AppendDecimal(VAR out: ARRAY OF SHORTCHAR; VAR pos: INTEGER; n: INTEGER): BOOLEAN;
+VAR digits: ARRAY 10 OF SHORTCHAR; count: INTEGER;
 BEGIN
   IF n <= 0 THEN RETURN FALSE END;
   count := 0;
-  WHILE n > 0 DO digits[count] := CHR(ORD('0') + n MOD 10); n := n DIV 10; INC(count) END;
+  WHILE n > 0 DO digits[count] := SYSTEM.VAL(SHORTCHAR, ORD('0') + n MOD 10); n := n DIV 10; INC(count) END;
   WHILE count > 0 DO DEC(count); IF ~AppendChar(out, pos, digits[count]) THEN RETURN FALSE END END;
   RETURN TRUE
 END AppendDecimal;
 
-PROCEDURE Hex(n: INTEGER): CHAR;
-BEGIN IF n < 10 THEN RETURN CHR(ORD('0') + n) ELSE RETURN CHR(ORD('a') + n - 10) END END Hex;
+PROCEDURE Hex(n: INTEGER): SHORTCHAR;
+BEGIN
+  IF n < 10 THEN RETURN SYSTEM.VAL(SHORTCHAR, ORD('0') + n)
+  ELSE RETURN SYSTEM.VAL(SHORTCHAR, ORD('a') + n - 10)
+  END
+END Hex;
 
-PROCEDURE AppendHex(VAR out: ARRAY OF CHAR; VAR pos: INTEGER; IN data: ARRAY OF CHAR; n: INTEGER): BOOLEAN;
+PROCEDURE AppendHex(VAR out: ARRAY OF SHORTCHAR; VAR pos: INTEGER; IN data: ARRAY OF SHORTCHAR; n: INTEGER): BOOLEAN;
 VAR i: INTEGER;
 BEGIN
   i := 0;
@@ -72,7 +76,7 @@ BEGIN
   RETURN TRUE
 END AppendHex;
 
-PROCEDURE Serialize(IN r: Record; VAR encoded: ARRAY OF CHAR; VAR encodedLen: INTEGER): INTEGER;
+PROCEDURE Serialize(IN r: Record; VAR encoded: ARRAY OF SHORTCHAR; VAR encodedLen: INTEGER): INTEGER;
 VAR pos: INTEGER;
 BEGIN
   ClearOutput(encoded, encodedLen); pos := 0;
@@ -85,7 +89,7 @@ BEGIN
   encoded[pos] := 0X; encodedLen := pos; RETURN PasswordStatus.Ok
 END Serialize;
 
-PROCEDURE Consume(IN input: ARRAY OF CHAR; inputLen: INTEGER; VAR pos: INTEGER; IN text: ARRAY OF CHAR): BOOLEAN;
+PROCEDURE Consume(IN input: ARRAY OF SHORTCHAR; inputLen: INTEGER; VAR pos: INTEGER; IN text: ARRAY OF SHORTCHAR): BOOLEAN;
 VAR i: INTEGER;
 BEGIN
   i := 0;
@@ -96,14 +100,14 @@ BEGIN
   RETURN TRUE
 END Consume;
 
-PROCEDURE Nibble(ch: CHAR): INTEGER;
+PROCEDURE Nibble(ch: SHORTCHAR): INTEGER;
 BEGIN
   IF ('0' <= ch) & (ch <= '9') THEN RETURN ORD(ch) - ORD('0') END;
   IF ('a' <= ch) & (ch <= 'f') THEN RETURN ORD(ch) - ORD('a') + 10 END;
   RETURN -1
 END Nibble;
 
-PROCEDURE ReadHex(IN input: ARRAY OF CHAR; inputLen: INTEGER; VAR pos: INTEGER; VAR data: ARRAY OF CHAR; n: INTEGER): BOOLEAN;
+PROCEDURE ReadHex(IN input: ARRAY OF SHORTCHAR; inputLen: INTEGER; VAR pos: INTEGER; VAR data: ARRAY OF SHORTCHAR; n: INTEGER): BOOLEAN;
 VAR i, a, b: INTEGER;
 BEGIN
   IF (n > LEN(data)) OR (inputLen - pos # n * 2) THEN RETURN FALSE END;
@@ -111,12 +115,12 @@ BEGIN
   WHILE i < n DO
     a := Nibble(input[pos]); b := Nibble(input[pos + 1]);
     IF (a < 0) OR (b < 0) THEN RETURN FALSE END;
-    data[i] := CHR(a * 16 + b); pos := pos + 2; INC(i)
+    data[i] := SYSTEM.VAL(SHORTCHAR, a * 16 + b); pos := pos + 2; INC(i)
   END;
   RETURN TRUE
 END ReadHex;
 
-PROCEDURE ReadIterations(IN input: ARRAY OF CHAR; inputLen: INTEGER; VAR pos: INTEGER; VAR n: INTEGER): BOOLEAN;
+PROCEDURE ReadIterations(IN input: ARRAY OF SHORTCHAR; inputLen: INTEGER; VAR pos: INTEGER; VAR n: INTEGER): BOOLEAN;
 VAR digit: INTEGER;
 BEGIN
   n := 0;
@@ -130,10 +134,12 @@ BEGIN
   RETURN pos < inputLen
 END ReadIterations;
 
-PROCEDURE Parse(IN encoded: ARRAY OF CHAR; encodedLen: INTEGER; policy: Policy; VAR r: Record): INTEGER;
+PROCEDURE Parse(IN encoded: ARRAY OF SHORTCHAR; encodedLen: INTEGER; policy: Policy; VAR r: Record): INTEGER;
 VAR pos: INTEGER;
 BEGIN
-  IF ~PasswordBytes.Valid(encoded, encodedLen) OR (encodedLen = 0) THEN RETURN PasswordStatus.InvalidFormat END;
+  IF ~PasswordBytes.Valid(encoded, encodedLen) OR (encodedLen < 133) OR (encodedLen > EncodedCapacity - 1) THEN
+    RETURN PasswordStatus.InvalidFormat
+  END;
   pos := 0;
   IF ~Consume(encoded, encodedLen, pos, 'oberon-pwh$') THEN RETURN PasswordStatus.InvalidFormat END;
   IF ~Consume(encoded, encodedLen, pos, '1$') THEN RETURN PasswordStatus.UnsupportedVersion END;
@@ -148,7 +154,7 @@ BEGIN
   RETURN PasswordStatus.Ok
 END Parse;
 
-PROCEDURE Create*(IN password: ARRAY OF CHAR; passwordLen: INTEGER; policy: Policy; VAR encoded: ARRAY OF CHAR; VAR encodedLen: INTEGER): INTEGER;
+PROCEDURE Create*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER; policy: Policy; VAR encoded: ARRAY OF SHORTCHAR; VAR encodedLen: INTEGER): INTEGER;
 VAR r: Record; status: INTEGER;
 BEGIN
   ClearOutput(encoded, encodedLen);
@@ -165,7 +171,7 @@ BEGIN
   RETURN status
 END Create;
 
-PROCEDURE NeedsRehash*(IN encoded: ARRAY OF CHAR; encodedLen: INTEGER; policy: Policy; VAR needed: BOOLEAN): INTEGER;
+PROCEDURE NeedsRehash*(IN encoded: ARRAY OF SHORTCHAR; encodedLen: INTEGER; policy: Policy; VAR needed: BOOLEAN): INTEGER;
 VAR r: Record; status: INTEGER;
 BEGIN
   needed := FALSE;
@@ -176,8 +182,8 @@ BEGIN
   RETURN status
 END NeedsRehash;
 
-PROCEDURE Verify*(IN password: ARRAY OF CHAR; passwordLen: INTEGER; IN encoded: ARRAY OF CHAR; encodedLen: INTEGER; policy: Policy; VAR matches, needsRehash: BOOLEAN): INTEGER;
-VAR r: Record; derived: ARRAY DerivedKeyLength OF CHAR; status: INTEGER;
+PROCEDURE Verify*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER; IN encoded: ARRAY OF SHORTCHAR; encodedLen: INTEGER; policy: Policy; VAR matches, needsRehash: BOOLEAN): INTEGER;
+VAR r: Record; derived: ARRAY DerivedKeyLength OF SHORTCHAR; status: INTEGER;
 BEGIN
   matches := FALSE; needsRehash := FALSE;
   IF ~ValidPolicy(policy) THEN RETURN PasswordStatus.InvalidPolicy END;

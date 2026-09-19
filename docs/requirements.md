@@ -45,7 +45,7 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 
 **PORT-01.** The first target dialect is FreeOberon with a fixed toolchain. Builds MUST record compiler-binary version and hash, translator version, C compiler, runtime, and flags.
 
-**PORT-02.** Verify the sizes and behavior of `CHAR`, integer types, `SET`, shifts, conversions, overflow, bounds checks, and byte order. Record results in `docs/portability.md` and executable checks. Never assume `INTEGER` is unsigned 32-bit.
+**PORT-02.** Verify the sizes and behavior of `SHORTCHAR`, `CHAR`, integer types, `SET`, shifts, conversions, overflow, bounds checks, and byte order. Record results in `docs/portability.md` and executable checks. Never assume `INTEGER` is unsigned 32-bit.
 
 **PORT-03.** Required release platforms are macOS arm64 and Linux x86_64. No “any Oberon” portability claim is made.
 
@@ -53,7 +53,7 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 
 ## 4. Data, strings, and memory
 
-**DATA-01.** Core APIs accept byte arrays and explicit lengths. `ARRAY OF CHAR` is allowed only when each element is treated as an octet 0…255. NUL bytes are ordinary data. Algorithmic modules MUST NOT use NUL-terminated string operations.
+**DATA-01.** Core APIs accept `ARRAY OF SHORTCHAR` byte arrays and explicit lengths. `SHORTCHAR` is required to keep octets 8-bit in the supported Ofront+ ABI. NUL bytes are ordinary data. Algorithmic modules MUST NOT use NUL-terminated string operations.
 
 **DATA-02.** Lengths are measured in bytes. Every call checks `0 <= length <= LEN(buffer)`. Slices check `offset <= LEN(buffer)` and `length <= LEN(buffer) - offset` before calculating a potentially overflowing sum. Hex lengths, block counts, and output capacities are checked likewise.
 

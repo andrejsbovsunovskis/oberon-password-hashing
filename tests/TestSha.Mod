@@ -2,8 +2,8 @@ MODULE TestSha;
 
 IMPORT Sha256;
 
-VAR data: ARRAY 4 OF CHAR;
-  got, want: ARRAY Sha256.DigestLength OF CHAR;
+VAR data: ARRAY 4 OF SHORTCHAR;
+  got, want: ARRAY Sha256.DigestLength OF SHORTCHAR;
   i, status: INTEGER;
 
 BEGIN
