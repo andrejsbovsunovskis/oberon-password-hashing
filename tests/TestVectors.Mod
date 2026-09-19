@@ -1,36 +1,51 @@
 MODULE TestVectors;
 
-IMPORT HmacSha256, Pbkdf2;
+IMPORT SYSTEM, PasswordStatus, PasswordBytes, HmacSha256, Pbkdf2;
 
-VAR key: ARRAY 9 OF SHORTCHAR;
-  data: ARRAY 5 OF SHORTCHAR;
-  salt: ARRAY 5 OF SHORTCHAR;
-  mac, dk: ARRAY 32 OF SHORTCHAR;
-  expectedMac, expectedDk: ARRAY 32 OF SHORTCHAR;
+VAR key: ARRAY 65 OF SHORTCHAR;
+  data: ARRAY 14 OF SHORTCHAR;
+  password, salt: ARRAY 9 OF SHORTCHAR;
+  empty: ARRAY 1 OF SHORTCHAR;
+  mac, dk, expected: ARRAY 32 OF SHORTCHAR;
   i, status: INTEGER;
 
+PROCEDURE Nibble(ch: SHORTCHAR): INTEGER;
 BEGIN
-  key := 'key'; data := 'data'; salt := 'salt';
-  expectedMac[0] := 50X; expectedMac[1] := 31X; expectedMac[2] := 0FEX; expectedMac[3] := 3DX;
-  expectedMac[4] := 98X; expectedMac[5] := 9CX; expectedMac[6] := 6DX; expectedMac[7] := 15X;
-  expectedMac[8] := 37X; expectedMac[9] := 0A0X; expectedMac[10] := 13X; expectedMac[11] := 0FAX;
-  expectedMac[12] := 6EX; expectedMac[13] := 73X; expectedMac[14] := 9DX; expectedMac[15] := 0A2X;
-  expectedMac[16] := 34X; expectedMac[17] := 63X; expectedMac[18] := 0FDX; expectedMac[19] := 0AEX;
-  expectedMac[20] := 0C3X; expectedMac[21] := 0B7X; expectedMac[22] := 01X; expectedMac[23] := 37X;
-  expectedMac[24] := 0D8X; expectedMac[25] := 28X; expectedMac[26] := 0E3X; expectedMac[27] := 6AX;
-  expectedMac[28] := 0CEX; expectedMac[29] := 22X; expectedMac[30] := 1BX; expectedMac[31] := 0D0X;
-  status := HmacSha256.Compute(key, 3, data, 4, mac); ASSERT(status = 0, 1);
-  i := 0; WHILE i < 32 DO ASSERT(mac[i] = expectedMac[i], 2); INC(i) END;
+  IF ('0' <= ch) & (ch <= '9') THEN RETURN ORD(ch) - ORD('0') END;
+  RETURN ORD(ch) - ORD('a') + 10
+END Nibble;
 
-  key := 'password';
-  expectedDk[0] := 12X; expectedDk[1] := 0FX; expectedDk[2] := 0B6X; expectedDk[3] := 0CFX;
-  expectedDk[4] := 0FCX; expectedDk[5] := 0F8X; expectedDk[6] := 0B3X; expectedDk[7] := 2CX;
-  expectedDk[8] := 43X; expectedDk[9] := 0E7X; expectedDk[10] := 22X; expectedDk[11] := 52X;
-  expectedDk[12] := 56X; expectedDk[13] := 0C4X; expectedDk[14] := 0F8X; expectedDk[15] := 37X;
-  expectedDk[16] := 0A8X; expectedDk[17] := 65X; expectedDk[18] := 48X; expectedDk[19] := 0C9X;
-  expectedDk[20] := 2CX; expectedDk[21] := 0CCX; expectedDk[22] := 35X; expectedDk[23] := 48X;
-  expectedDk[24] := 08X; expectedDk[25] := 05X; expectedDk[26] := 98X; expectedDk[27] := 7CX;
-  expectedDk[28] := 0B7X; expectedDk[29] := 0BX; expectedDk[30] := 0E1X; expectedDk[31] := 7BX;
-  status := Pbkdf2.Derive(key, 8, salt, 4, 1, 32, dk); ASSERT(status = 0, 3);
-  i := 0; WHILE i < 32 DO ASSERT(dk[i] = expectedDk[i], 4); INC(i) END
+PROCEDURE DecodeHex(IN text: ARRAY OF SHORTCHAR; VAR output: ARRAY OF SHORTCHAR);
+VAR j: INTEGER;
+BEGIN
+  j := 0;
+  WHILE j < LEN(output) DO
+    output[j] := SYSTEM.VAL(SHORTCHAR, Nibble(text[j * 2]) * 16 + Nibble(text[j * 2 + 1]));
+    INC(j)
+  END
+END DecodeHex;
+
+BEGIN
+  i := 0; WHILE i < LEN(key) DO key[i] := SYSTEM.VAL(SHORTCHAR, i); INC(i) END;
+  data := 'OpenAI Oberon';
+  DecodeHex('86a1e9bf017a601628c63ad3c8a8f030a3837ab37fe7f92f04186dbde83c3656', expected);
+  status := HmacSha256.Compute(key, 0, data, 13, mac); ASSERT(status = PasswordStatus.Ok, 1);
+  ASSERT(PasswordBytes.EqualConstantTime(mac, expected, LEN(mac)), 2);
+  DecodeHex('7940d8a28f93effeb28f3753ccf83eb28d88d2bd82530893ec8a8e107c075ccb', expected);
+  status := HmacSha256.Compute(key, 63, data, 13, mac); ASSERT(status = PasswordStatus.Ok, 3);
+  ASSERT(PasswordBytes.EqualConstantTime(mac, expected, LEN(mac)), 4);
+  DecodeHex('f741b794ca0c2ecfcba96c3da89ad5e536497df4d723fea3defaa60b6615801c', expected);
+  status := HmacSha256.Compute(key, 64, data, 13, mac); ASSERT(status = PasswordStatus.Ok, 5);
+  ASSERT(PasswordBytes.EqualConstantTime(mac, expected, LEN(mac)), 6);
+  DecodeHex('9c15b7001c0578156fba4d8d716d9a33c7ad17ba6eccb4b076ec0527560e9fe0', expected);
+  status := HmacSha256.Compute(key, 65, data, 13, mac); ASSERT(status = PasswordStatus.Ok, 7);
+  ASSERT(PasswordBytes.EqualConstantTime(mac, expected, LEN(mac)), 8);
+
+  password := 'password'; salt := 'salt';
+  DecodeHex('c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a', expected);
+  status := Pbkdf2.Derive(password, 8, salt, 4, 4096, 32, dk); ASSERT(status = PasswordStatus.Ok, 9);
+  ASSERT(PasswordBytes.EqualConstantTime(dk, expected, LEN(dk)), 10);
+  DecodeHex('97398411d6aea43a77acef92226ab8278d4db0668bd1d7a76a725f7680ac45c5', expected);
+  status := Pbkdf2.Derive(empty, 0, empty, 0, 2, 32, dk); ASSERT(status = PasswordStatus.Ok, 11);
+  ASSERT(PasswordBytes.EqualConstantTime(dk, expected, LEN(dk)), 12)
 END TestVectors.
