@@ -38,7 +38,7 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 | ARCH-02 | `HmacSha256` | HMAC over SHA-256 and prepared key state for repeated computations. |
 | ARCH-03 | `Pbkdf2` | PBKDF2-HMAC-SHA-256 over bytes; the caller supplies parameters. |
 | ARCH-04 | `PasswordHash` | Policy, format, salt, creation, verification, and rehash detection. |
-| ARCH-05 | `SecureRandom` | Buffer-fill contract with separate adapters for supported systems. |
+| ARCH-05 | `SecureRandom` | Buffer-fill contract with an adapter for each supported system. |
 | ARCH-06 | Internal utilities | 32-bit arithmetic, hex, comparison, and clearing as needed; do not automatically make them public APIs. |
 | ARCH-07 | Dependencies | Acyclic imports; no application model, database, HTTP, session, logger, or hidden file/network actions in the core. |
 | ARCH-08 | State | Independent contexts and immutable constants; no global mutable work buffer or global last-error state. |
@@ -47,7 +47,7 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 
 **PORT-02.** Verify the sizes and behavior of `SHORTCHAR`, integer types, `SET`, shifts, conversions, bounds checks, and byte order in executable tests and `docs/portability.md`. Never rely on signed `INTEGER` overflow.
 
-**PORT-03.** Required release platforms are macOS arm64 and Linux x86_64. No “any Oberon” portability claim is made.
+**PORT-03.** The required release platform is macOS arm64. No “any Oberon” portability claim is made. A new platform becomes supported only after the complete test and sanitizer commands pass there.
 
 **PORT-04.** SHA-256 words are exactly 32 bits. Addition modulo 2^32 and logical shifts MUST avoid undefined signed overflow in generated C and language-range violations. Byte order is explicit and CPU-independent.
 
@@ -89,7 +89,7 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 
 **RNG-03.** An adapter succeeds only after filling the entire range. Partial output, interruption, and OS failure follow the selected API contract with bounded retry. If bytes cannot be obtained, `Create` returns `RandomUnavailable`, clears output, and creates no record.
 
-**RNG-04.** The OS API and its contract are recorded in an ADR before adapter implementation and tested on macOS and Linux. The library does not implement or cache its own PRNG/DRBG sequence between processes.
+**RNG-04.** The OS API and its contract are recorded in an ADR and tested on each supported platform. The library does not implement or cache its own PRNG/DRBG sequence between processes.
 
 **RNG-05.** A deterministic source is allowed only in test builds/test adapters and MUST be separated from production configuration.
 
@@ -131,7 +131,7 @@ Pbkdf2.Derive(password, passwordLen, salt, saltLen,
               iterations, dkLen, OUT key) -> Status
 ```
 
-**API-01.** All parameters document units, ownership, ranges, output capacity, aliasing, clearing, and valid call order. Examples compile in CI.
+**API-01.** All parameters document units, ownership, ranges, output capacity, aliasing, clearing, and valid call order. Examples compile in `scripts/test.sh`.
 
 **API-02.** Stable status codes include `Ok`, `InvalidArgument`, `InvalidState`, `BufferTooSmall`, `PasswordTooLong`, `InvalidPolicy`, `InvalidFormat`, `UnsupportedVersion`, `UnsupportedAlgorithm`, `PolicyRejected`, `RandomUnavailable`, and `InternalError`. Any verification error returns failure with both output flags false; access is denied.
 
@@ -149,7 +149,7 @@ Pbkdf2.Derive(password, passwordLen, salt, saltLen,
 
 **PERF-02.** Benchmark release builds at the deployment iteration count and representative password lengths before integration. Do not lower the configured work factor merely to improve an unmeasured result.
 
-**PERF-03.** The initial deployment target is p95 verification time no greater than 500 ms on the target server without contention. This is a project goal, not an algorithm guarantee. Define and test budgets for planned concurrency and request limits; never silently lower the minimum.
+**PERF-03.** Each integrating project defines and measures its verification latency and concurrency budget on its target hardware. Never silently lower the configured work factor to meet that budget.
 
 **PERF-04.** Independent operations remain isolated when calls are interleaved. Claim thread safety only after validating the runtime and adapter; otherwise document application-level serialization.
 
@@ -159,22 +159,19 @@ Tests use synthetic data, not production databases or real passwords. Independen
 
 | Test ID | Required coverage |
 |---|---|
-| T-SHA | Standard vectors, empty input, `abc`, one million `a`, boundary message lengths, all byte values, and different chunkings. |
-| T-HMAC | RFC 4231 SHA-256 vectors, key lengths 0/63/64/65, binary data, and prepared-state reuse. |
-| T-KDF | Independent PBKDF2-HMAC-SHA-256 at c=1/2/4096/600000, boundary `dkLen`, empty/binary P/S, and invalid parameters. |
-| T-ARITH | Carries, high bits, shifts 0/1/31, boundary words, and length-counter limits. |
-| T-ROUNDTRIP | Create/verify, wrong password, fresh test salt, UTF-8, NUL, spaces, and password-boundary cases. |
-| T-FORMAT | Malformed delimiters/fields, case/hex errors, extra data, signs, leading zeros, huge integers, unknown version/algorithm, and canonical round-trip. |
-| T-LIMIT | Passwords 1023/1024/1025, output capacities 0/1/133…143, exact/insufficient buffers, invalid lengths, and guard bytes. |
-| T-POLICY | All min/target/max/hard-limit boundaries, invalid policies, migration mode, and no downgrade. |
-| T-FAIL | RNG failure/partial output, malformed input, invalid SHA state, post-error calls, clearing, and output initialization. |
-| T-COST | Invalid format/limits rejected before KDF; invalid policy and small output rejected before RNG. |
-| T-ISOLATION | Interleaved independent contexts and Create/Verify calls; declared concurrency behavior. |
-| T-TIMING | First/middle/last-byte mismatches, machine-code review, and clearing under optimization. |
+| T-SHA | FIPS fixtures for empty input, `abc`, and a binary padding boundary; streaming chunks and invalid state transitions. |
+| T-HMAC | SHA-256 fixtures for key lengths 0/20/63/64/65 and prepared-state use through PBKDF2. |
+| T-KDF | Independent PBKDF2-HMAC-SHA-256 fixtures at c=1/2/4096/600000, multi-block output, empty input, and invalid output sizes. |
+| T-ARITH | Carry, high-bit rotation, and logical shift boundaries. |
+| T-API | Create/verify, wrong passwords, output clearing, aliasing, invalid SHA state, policy/rehash behavior, and buffer limits. |
+| T-PARSER | Malformed record handling plus 100,000 deterministic one-byte record mutations through the public verifier. |
+| T-RNG | Invalid lengths, zero-length success, and successful complete OS-buffer fills. |
+| T-COST | One create and one verify using `DefaultPolicy`. |
+| T-TIMING | Generated-code review for full-length comparison and wipe calls under the documented release flags. |
 | T-FUZZ | At least 100,000 reproducible parser/API mutations within a bounded execution budget and without uncontrolled expensive KDF calls. |
-| T-BUILD | Clean debug/release builds of examples and tests from a separate checkout on both target platforms. |
+| T-BUILD | Clean release and sanitizer builds of examples and tests on every supported platform. |
 
-**TEST-01.** PBKDF2 fixtures record provenance, tool versions, and hex inputs. Use independent implementations such as Python `hashlib.pbkdf2_hmac` and Go `crypto/pbkdf2`; RFC 6070 is PBKDF2-HMAC-SHA-1 and is not a SHA-256 vector set.
+**TEST-01.** PBKDF2 fixtures use hex inputs and outputs generated with Python `hashlib.pbkdf2_hmac`; RFC 6070 is PBKDF2-HMAC-SHA-1 and is not a SHA-256 vector set.
 
 **TEST-02.** Preserve standard fixtures and regressions for SHA/HMAC/PBKDF2, including low-iteration and deployment-cost cases. Check statuses and memory boundaries, not only happy-path outputs.
 
@@ -200,9 +197,9 @@ Tests use synthetic data, not production databases or real passwords. Independen
 
 1. **G0 — contract and platform:** dialect, types, API, arithmetic/RNG ADRs, OS matrix, and format are fixed; a minimal interface example compiles.
 2. **G1 — SHA-256:** T-SHA and T-ARITH pass in debug/release; streaming state and length overflow are verified.
-3. **G2 — HMAC and PBKDF2:** T-HMAC/T-KDF and independent differential tests pass; long keys and multiple output blocks are covered.
-4. **G3 — format, policy, and RNG:** negative, fault-injection, fuzz, and two-platform tests pass; no unsafe fallback exists.
-5. **G4 — PasswordHash:** end-to-end contracts, buffers, rehash, errors, reproducible benchmarks, and generated-code analysis are complete.
+3. **G2 — HMAC and PBKDF2:** T-HMAC/T-KDF fixtures pass; long keys and multiple output blocks are covered.
+4. **G3 — format, policy, and RNG:** negative, mutation, and supported-platform RNG tests pass; no unsafe fallback exists.
+5. **G4 — PasswordHash:** end-to-end contracts, buffers, rehash, errors, deployment-cost test, and generated-code analysis are complete.
 6. **G5 — library release:** a clean checkout builds with the documented toolchain, examples and limitations are published, and the complete test and sanitizer commands pass on every supported operating system.
 
 **DONE-01.** Unsupported platforms, unexplained reference mismatches, crashes on external input, sanitizer findings, and failed parser mutations block G5.
@@ -216,4 +213,4 @@ Checked 19 September 2026:
 - [RFC 4231](https://www.rfc-editor.org/rfc/rfc4231.html) — HMAC-SHA-256 test vectors.
 - [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) — password-hashing guidance and cost reference.
 
-The `oberon-pwh` format, API statuses, 1024-byte password limit, iteration ceilings, OS matrix, 500 ms budget, and quantitative test thresholds are project decisions in this specification. Reassess compatibility, load, and tests before changing them, and re-check current KDF-cost guidance before release.
+The `oberon-pwh` format, API statuses, 1024-byte password limit, iteration ceilings, supported-platform matrix, and test thresholds are project decisions in this specification. Reassess compatibility, load, and tests before changing them, and re-check current KDF-cost guidance before release.
