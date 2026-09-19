@@ -13,6 +13,9 @@ translator="$toolchain/Data/bin/OfrontPlus/Target/$target/ofront+"
 runtime="$toolchain/Data/bin/OfrontPlus/Target/$target"
 
 test -x "$translator"
+echo "Ofront translator: $translator"
+if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$translator"; else sha256sum "$translator"; fi
+clang --version | sed -n '1p'
 build=$(mktemp -d "${TMPDIR:-/tmp}/oberon-password-hashing.XXXXXX")
 trap 'rm -rf "$build"' EXIT HUP INT TERM
 cp "$root"/src/*.Mod "$root"/platform/SecureRandom.Mod "$root"/tests/TestSha.Mod "$root"/tests/TestVectors.Mod "$root"/tests/TestPasswordHash.Mod "$root"/examples/PasswordRecords.Mod "$build"/
