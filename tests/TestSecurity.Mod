@@ -13,6 +13,7 @@ VAR key: ARRAY 21 OF SHORTCHAR;
   block: ARRAY 64 OF SHORTCHAR;
   tail: ARRAY 63 OF SHORTCHAR;
   digest1, digest2: ARRAY Sha256.DigestLength OF SHORTCHAR;
+  shortDigest: ARRAY Sha256.DigestLength - 1 OF SHORTCHAR;
   c: Sha256.Context;
   policy: PasswordHash.Policy;
   record: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
@@ -62,16 +63,19 @@ BEGIN
   status := Sha256.Init(c); ASSERT(status = PasswordStatus.Ok, 11);
   status := Sha256.Update(c, block, -1); ASSERT(status = PasswordStatus.InvalidArgument, 12);
   status := Sha256.Update(c, block, 0); ASSERT(status = PasswordStatus.InvalidState, 13);
+  status := Sha256.Init(c); ASSERT(status = PasswordStatus.Ok, 14);
+  status := Sha256.Final(c, shortDigest); ASSERT(status = PasswordStatus.BufferTooSmall, 15);
+  status := Sha256.Update(c, block, 0); ASSERT(status = PasswordStatus.InvalidState, 16);
 
   PasswordHash.DefaultPolicy(policy);
   policy.minIterations := 1; policy.targetIterations := 1; policy.maxIterations := 2; policy.hardLimit := 2;
-  status := PasswordHash.Create(password, 8, policy, tooSmall, recordLen); ASSERT(status = PasswordStatus.BufferTooSmall, 14);
-  status := PasswordHash.Create(password, 8, policy, record, recordLen); ASSERT(status = PasswordStatus.Ok, 15);
+  status := PasswordHash.Create(password, 8, policy, tooSmall, recordLen); ASSERT(status = PasswordStatus.BufferTooSmall, 17);
+  status := PasswordHash.Create(password, 8, policy, record, recordLen); ASSERT(status = PasswordStatus.Ok, 18);
   status := PasswordHash.Verify(password, 8, record, recordLen, policy, matches, needsRehash);
-  ASSERT(status = PasswordStatus.Ok, 16); ASSERT(matches, 17); ASSERT(~needsRehash, 18);
+  ASSERT(status = PasswordStatus.Ok, 19); ASSERT(matches, 20); ASSERT(~needsRehash, 21);
   record[0] := 'O';
   status := PasswordHash.Verify(password, 8, record, recordLen, policy, matches, needsRehash);
-  ASSERT(status = PasswordStatus.InvalidFormat, 19); ASSERT(~matches, 20); ASSERT(~needsRehash, 21);
+  ASSERT(status = PasswordStatus.InvalidFormat, 22); ASSERT(~matches, 23); ASSERT(~needsRehash, 24);
   status := PasswordHash.Verify(password, 8, oversized, LEN(oversized), policy, matches, needsRehash);
-  ASSERT(status = PasswordStatus.InvalidFormat, 22); ASSERT(~matches, 23); ASSERT(~needsRehash, 24)
+  ASSERT(status = PasswordStatus.InvalidFormat, 25); ASSERT(~matches, 26); ASSERT(~needsRehash, 27)
 END TestSecurity.

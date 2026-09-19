@@ -162,7 +162,9 @@ BEGIN
   IF ~PasswordBytes.Valid(password, passwordLen) THEN RETURN PasswordStatus.InvalidArgument END;
   IF passwordLen > policy.passwordLimit THEN RETURN PasswordStatus.PasswordTooLong END;
   IF LEN(encoded) < EncodedCapacity THEN RETURN PasswordStatus.BufferTooSmall END;
-  IF ~SecureRandom.Fill(r.salt, SaltLength) THEN PasswordBytes.Clear(r.salt, LEN(r.salt)); RETURN PasswordStatus.RandomUnavailable END;
+  IF ~SecureRandom.Fill(r.salt, SaltLength) THEN
+    PasswordBytes.Clear(r.salt, LEN(r.salt)); PasswordBytes.Clear(r.key, LEN(r.key)); RETURN PasswordStatus.RandomUnavailable
+  END;
   r.iterations := policy.targetIterations;
   status := Pbkdf2.Derive(password, passwordLen, r.salt, SaltLength, r.iterations, DerivedKeyLength, r.key);
   IF status = PasswordStatus.Ok THEN status := Serialize(r, encoded, encodedLen) END;

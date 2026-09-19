@@ -20,7 +20,7 @@ VAR k, pad: ARRAY Sha256.BlockLength OF SHORTCHAR;
   digest: ARRAY Sha256.DigestLength OF SHORTCHAR;
   i, status: INTEGER;
 BEGIN
-  c.ready := FALSE;
+  Clear(c);
   IF ~PasswordBytes.Valid(key, keyLen) THEN RETURN PasswordStatus.InvalidArgument END;
   PasswordBytes.Clear(k, LEN(k));
   IF keyLen > Sha256.BlockLength THEN

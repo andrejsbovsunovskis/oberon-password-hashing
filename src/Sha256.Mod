@@ -151,8 +151,8 @@ PROCEDURE Final*(VAR c: Context; VAR digest: ARRAY OF SHORTCHAR): INTEGER;
 VAR i: INTEGER; bitHi, bitLo: W.Word;
   a, b, d, e: SHORTCHAR;
 BEGIN
-  IF LEN(digest) < DigestLength THEN PasswordBytes.Clear(digest, LEN(digest)); RETURN PasswordStatus.BufferTooSmall END;
-  IF ~c.initialized OR c.finished THEN PasswordBytes.Clear(digest, DigestLength); RETURN PasswordStatus.InvalidState END;
+  IF LEN(digest) < DigestLength THEN PasswordBytes.Clear(digest, LEN(digest)); Clear(c); RETURN PasswordStatus.BufferTooSmall END;
+  IF ~c.initialized OR c.finished THEN PasswordBytes.Clear(digest, DigestLength); Clear(c); RETURN PasswordStatus.InvalidState END;
   c.block[c.used] := 80X; INC(c.used);
   IF c.used > 56 THEN
     WHILE c.used < BlockLength DO c.block[c.used] := 0X; INC(c.used) END;
