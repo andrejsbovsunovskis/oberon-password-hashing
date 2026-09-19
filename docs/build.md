@@ -1,5 +1,7 @@
 # Build and test
 
+[Русская версия](build.ru.md)
+
 The pinned source dialect is FreeOberon translated by Ofront+ with the `-88` memory model. The project uses no cryptographic C library: generated C is only the FreeOberon backend.
 
 Install FreeOberon, point `FREEOBERON_HOME` to its checkout, then run `./scripts/test.sh`.

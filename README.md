@@ -21,4 +21,4 @@ For an additional memory-safety run, use:
 CFLAGS='-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer' ./scripts/test.sh
 ```
 
-Documentation: [English contract](docs/requirements.md) · [Русский](docs/requirements.ru.md) · [build](docs/build.md) · [portability](docs/portability.md)
+Documentation: [English README](README.md) · [Русский README](README.ru.md) · [English requirements](docs/requirements.md) · [Русские требования](docs/requirements.ru.md) · [build](docs/build.md) · [сборка на русском](docs/build.ru.md) · [portability](docs/portability.md) · [переносимость на русском](docs/portability.ru.md) · [support](docs/support.md) · [поддержка на русском](docs/support.ru.md)
