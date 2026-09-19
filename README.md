@@ -2,6 +2,8 @@
 
 An independent FreeOberon library for storing and verifying passwords with PBKDF2-HMAC-SHA-256.
 
+Documentation: [English](docs/requirements.md) · [Русский](docs/requirements.ru.md)
+
 This project is currently at the requirements stage; no implementation has been released yet. The complete specification, including the API, storage format, randomness, portability, and testing requirements, is available in [docs/requirements.md](docs/requirements.md).
 
 Planned repository layout:
