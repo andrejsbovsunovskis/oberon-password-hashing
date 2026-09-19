@@ -1,13 +1,6 @@
-# Build products
-_Build/
 *.c
 *.h
-*.o
-*.sym
 *.oh
-*.exe
-
-# Test and benchmark artifacts
-coverage/
-artifacts/
-*.prof
+*.sym
+TestSha
+TestVectors
