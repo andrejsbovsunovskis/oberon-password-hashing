@@ -15,11 +15,12 @@ runtime="$toolchain/Data/bin/OfrontPlus/Target/$target"
 test -x "$translator"
 build=$(mktemp -d "${TMPDIR:-/tmp}/oberon-password-hashing.XXXXXX")
 trap 'rm -rf "$build"' EXIT HUP INT TERM
-cp "$root"/src/*.Mod "$root"/platform/SecureRandom.Mod "$root"/tests/TestSha.Mod "$root"/tests/TestVectors.Mod "$root"/tests/TestPasswordHash.Mod "$build"/
+cp "$root"/src/*.Mod "$root"/platform/SecureRandom.Mod "$root"/tests/TestSha.Mod "$root"/tests/TestVectors.Mod "$root"/tests/TestPasswordHash.Mod "$root"/examples/PasswordRecords.Mod "$build"/
 cp "$runtime/Lib/Sym/Platform.sym" "$build"/
 
 cd "$build"
 "$translator" -sxtap88 PasswordStatus.Mod PasswordBytes.Mod PasswordWord.Mod Sha256.Mod HmacSha256.Mod Pbkdf2.Mod SecureRandom.Mod PasswordHash.Mod
+"$translator" -sxtap88 PasswordRecords.Mod
 "$translator" -m -sxtap88 TestSha.Mod
 clang -O2 -I "$toolchain/Data/bin/OfrontPlus/Mod/Lib" -I "$runtime/Lib/Obj" \
   PasswordStatus.c PasswordBytes.c PasswordWord.c Sha256.c TestSha.c "$runtime/Lib/libOfront.a" -o test-sha
