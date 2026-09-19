@@ -165,7 +165,7 @@ Tests use synthetic data, not production databases or real passwords. Independen
 | T-ARITH | Carries, high bits, shifts 0/1/31, boundary words, and length-counter limits. |
 | T-ROUNDTRIP | Create/verify, wrong password, fresh test salt, UTF-8, NUL, spaces, and password-boundary cases. |
 | T-FORMAT | Malformed delimiters/fields, case/hex errors, extra data, signs, leading zeros, huge integers, unknown version/algorithm, and canonical round-trip. |
-| T-LIMIT | Passwords 1023/1024/1025, output capacities 0/1/130…134, exact/insufficient buffers, invalid lengths, and guard bytes. |
+| T-LIMIT | Passwords 1023/1024/1025, output capacities 0/1/133…143, exact/insufficient buffers, invalid lengths, and guard bytes. |
 | T-POLICY | All min/target/max/hard-limit boundaries, invalid policies, migration mode, and no downgrade. |
 | T-FAIL | RNG failure/partial output, malformed input, invalid SHA state, post-error calls, clearing, and output initialization. |
 | T-COST | Invalid format/limits rejected before KDF; invalid policy and small output rejected before RNG. |

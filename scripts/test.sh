@@ -18,7 +18,7 @@ if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$translator"; else sha
 clang --version | sed -n '1p'
 build=$(mktemp -d "${TMPDIR:-/tmp}/oberon-password-hashing.XXXXXX")
 trap 'rm -rf "$build"' EXIT HUP INT TERM
-cp "$root"/src/*.Mod "$root"/platform/SecureRandom.Mod "$root"/tests/TestSha.Mod "$root"/tests/TestVectors.Mod "$root"/tests/TestPasswordHash.Mod "$root"/examples/PasswordRecords.Mod "$build"/
+cp "$root"/src/*.Mod "$root"/platform/SecureRandom.Mod "$root"/tests/TestSha.Mod "$root"/tests/TestVectors.Mod "$root"/tests/TestPasswordHash.Mod "$root"/tests/TestSecurity.Mod "$root"/examples/PasswordRecords.Mod "$build"/
 cp "$runtime/Lib/Sym/Platform.sym" "$build"/
 
 cd "$build"
@@ -36,3 +36,7 @@ clang -O2 -I "$toolchain/Data/bin/OfrontPlus/Mod/Lib" -I "$runtime/Lib/Obj" \
 clang -O2 -I "$toolchain/Data/bin/OfrontPlus/Mod/Lib" -I "$runtime/Lib/Obj" \
   PasswordStatus.c PasswordBytes.c PasswordWord.c Sha256.c HmacSha256.c Pbkdf2.c SecureRandom.c PasswordHash.c TestPasswordHash.c "$runtime/Lib/Obj/Platform.c" "$runtime/Lib/libOfront.a" -o test-password-hash
 ./test-password-hash
+"$translator" -m -s88 TestSecurity.Mod
+clang -O2 -I "$toolchain/Data/bin/OfrontPlus/Mod/Lib" -I "$runtime/Lib/Obj" \
+  PasswordStatus.c PasswordBytes.c PasswordWord.c Sha256.c HmacSha256.c Pbkdf2.c SecureRandom.c PasswordHash.c TestSecurity.c "$runtime/Lib/Obj/Platform.c" "$runtime/Lib/libOfront.a" -o test-security
+./test-security
