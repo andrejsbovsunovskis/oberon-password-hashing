@@ -43,9 +43,9 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 | ARCH-07 | Dependencies | Acyclic imports; no application model, database, HTTP, session, logger, or hidden file/network actions in the core. |
 | ARCH-08 | State | Independent contexts and immutable constants; no global mutable work buffer or global last-error state. |
 
-**PORT-01.** The target dialect is FreeOberon translated by Ofront+ with the `-88` memory model. Builds MUST print the translator path and hash, C compiler version, target architecture, and effective C flags.
+**PORT-01.** The target dialect is FreeOberon/Oberon-07 translated by Ofront+ with `-s -88 -7w`, matching the stock `fob` build. Builds MUST print the translator path and hash, C compiler version, target architecture, and effective C flags.
 
-**PORT-02.** Verify the sizes and behavior of `SHORTCHAR`, integer types, `SET`, shifts, conversions, bounds checks, and byte order in executable tests and `docs/portability.md`. Never rely on signed `INTEGER` overflow.
+**PORT-02.** Verify the sizes and behavior of `SYSTEM.CHAR8`, integer types, `SET`, shifts, conversions, bounds checks, and byte order in executable tests and `docs/portability.md`. Never rely on signed `INTEGER` overflow.
 
 **PORT-03.** The required release platform is macOS arm64. No “any Oberon” portability claim is made. A new platform becomes supported only after the complete test and sanitizer commands pass there.
 
@@ -53,7 +53,7 @@ The library is a reusable set of Oberon modules: `Sha256`, `HmacSha256`, `Pbkdf2
 
 ## 4. Data, strings, and memory
 
-**DATA-01.** Core APIs accept `ARRAY OF SHORTCHAR` byte arrays and explicit lengths. `SHORTCHAR` is required to keep octets 8-bit in the supported Ofront+ ABI. NUL bytes are ordinary data. Algorithmic modules MUST NOT use NUL-terminated string operations.
+**DATA-01.** Core APIs accept `ARRAY OF SYSTEM.CHAR8` byte arrays and explicit lengths. `SYSTEM.CHAR8` is required to keep octets 8-bit in the supported Ofront+ ABI. NUL bytes are ordinary data. Algorithmic modules MUST NOT use NUL-terminated string operations.
 
 **DATA-02.** Lengths are measured in bytes. Every call checks `0 <= length <= LEN(buffer)`. Slices check `offset <= LEN(buffer)` and `length <= LEN(buffer) - offset` before calculating a potentially overflowing sum. Hex lengths, block counts, and output capacities are checked likewise.
 

@@ -9,6 +9,7 @@ The current supported build is macOS arm64 with the documented FreeOberon/Ofront
 ```sh
 export FREEOBERON_HOME=/path/to/FreeOberon
 ./scripts/test.sh
+./scripts/test-fob.sh
 ```
 
 The script builds in a temporary directory, so generated C and symbol files never enter the source tree. It can run on macOS arm64/x86_64 and Linux x86_64/aarch64 when the matching FreeOberon target is installed; only macOS arm64 is currently a supported target.

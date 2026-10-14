@@ -1,19 +1,19 @@
 MODULE PasswordRecords;
 
-IMPORT PasswordHash, PasswordStatus, PasswordBytes;
+IMPORT SYSTEM, PasswordHash, PasswordStatus, PasswordBytes;
 
 (* Applications store encoded records unchanged and decide what to tell users. *)
 
-PROCEDURE CreateRecord*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER;
-                        VAR record: ARRAY OF SHORTCHAR; VAR recordLen: INTEGER): INTEGER;
+PROCEDURE CreateRecord*(password: ARRAY OF SYSTEM.CHAR8; passwordLen: INTEGER;
+                        VAR record: ARRAY OF SYSTEM.CHAR8; VAR recordLen: INTEGER): INTEGER;
 VAR policy: PasswordHash.Policy;
 BEGIN
   PasswordHash.DefaultPolicy(policy);
   RETURN PasswordHash.Create(password, passwordLen, policy, record, recordLen)
 END CreateRecord;
 
-PROCEDURE VerifyRecord*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER;
-                        IN record: ARRAY OF SHORTCHAR; recordLen: INTEGER;
+PROCEDURE VerifyRecord*(password: ARRAY OF SYSTEM.CHAR8; passwordLen: INTEGER;
+                        record: ARRAY OF SYSTEM.CHAR8; recordLen: INTEGER;
                         VAR accepted, replaceRecord: BOOLEAN): INTEGER;
 VAR policy: PasswordHash.Policy;
   status: INTEGER;
@@ -28,9 +28,9 @@ BEGIN
   RETURN status
 END VerifyRecord;
 
-PROCEDURE VerifyAndRefresh*(IN password: ARRAY OF SHORTCHAR; passwordLen: INTEGER;
-                            IN record: ARRAY OF SHORTCHAR; recordLen: INTEGER;
-                            VAR replacement: ARRAY OF SHORTCHAR; VAR replacementLen: INTEGER;
+PROCEDURE VerifyAndRefresh*(password: ARRAY OF SYSTEM.CHAR8; passwordLen: INTEGER;
+                            record: ARRAY OF SYSTEM.CHAR8; recordLen: INTEGER;
+                            VAR replacement: ARRAY OF SYSTEM.CHAR8; VAR replacementLen: INTEGER;
                             VAR accepted, replaced: BOOLEAN): INTEGER;
 VAR policy: PasswordHash.Policy;
   needsRehash: BOOLEAN;

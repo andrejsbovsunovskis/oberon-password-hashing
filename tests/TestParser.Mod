@@ -5,8 +5,8 @@ IMPORT SYSTEM, PasswordStatus, PasswordBytes, PasswordHash;
 CONST Mutations = 100000;
 
 VAR policy: PasswordHash.Policy;
-  password: ARRAY 9 OF SHORTCHAR;
-  original, mutated: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
+  password: ARRAY 9 OF SYSTEM.CHAR8;
+  original, mutated: ARRAY PasswordHash.EncodedCapacity OF SYSTEM.CHAR8;
   originalLen, status, i, pos: INTEGER;
   matches, needsRehash: BOOLEAN;
 
@@ -35,7 +35,7 @@ BEGIN
   WHILE i < Mutations DO
     CopyRecord;
     pos := i MOD originalLen;
-    mutated[pos] := SYSTEM.VAL(SHORTCHAR, (ORD(original[pos]) + 1 + i DIV originalLen) MOD 127);
+    mutated[pos] := SYSTEM.VAL(SYSTEM.CHAR8, (ORD(original[pos]) + 1 + i DIV originalLen) MOD 127);
     IF mutated[pos] = original[pos] THEN mutated[pos] := 0X END;
     status := PasswordHash.Verify(password, 8, mutated, originalLen, policy, matches, needsRehash);
     ASSERT(IsExpected(status), 2);

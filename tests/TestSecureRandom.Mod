@@ -1,8 +1,8 @@
 MODULE TestSecureRandom;
 
-IMPORT SecureRandom;
+IMPORT SYSTEM, SecureRandom;
 
-VAR buffer: ARRAY 16 OF SHORTCHAR;
+VAR buffer: ARRAY 16 OF SYSTEM.CHAR8;
   i: INTEGER;
   nonzero: BOOLEAN;
 

@@ -2,31 +2,34 @@ MODULE TestVectors;
 
 IMPORT SYSTEM, PasswordStatus, PasswordBytes, HmacSha256, Pbkdf2;
 
-VAR key: ARRAY 65 OF SHORTCHAR;
-  data: ARRAY 14 OF SHORTCHAR;
-  password, salt: ARRAY 9 OF SHORTCHAR;
-  empty: ARRAY 1 OF SHORTCHAR;
-  mac, dk, expected: ARRAY 32 OF SHORTCHAR;
+VAR key: ARRAY 65 OF SYSTEM.CHAR8;
+  data: ARRAY 14 OF SYSTEM.CHAR8;
+  password, salt: ARRAY 9 OF SYSTEM.CHAR8;
+  empty: ARRAY 1 OF SYSTEM.CHAR8;
+  mac, dk, expected: ARRAY 32 OF SYSTEM.CHAR8;
   i, status: INTEGER;
 
-PROCEDURE Nibble(ch: SHORTCHAR): INTEGER;
+PROCEDURE Nibble(ch: SYSTEM.CHAR8): INTEGER;
+VAR result: INTEGER;
 BEGIN
-  IF ('0' <= ch) & (ch <= '9') THEN RETURN ORD(ch) - ORD('0') END;
-  RETURN ORD(ch) - ORD('a') + 10
+  IF ('0' <= ch) & (ch <= '9') THEN result := ORD(ch) - ORD('0')
+  ELSE result := ORD(ch) - ORD('a') + 10
+  END
+  RETURN result
 END Nibble;
 
-PROCEDURE DecodeHex(IN text: ARRAY OF SHORTCHAR; VAR output: ARRAY OF SHORTCHAR);
+PROCEDURE DecodeHex(text: ARRAY OF SYSTEM.CHAR8; VAR output: ARRAY OF SYSTEM.CHAR8);
 VAR j: INTEGER;
 BEGIN
   j := 0;
   WHILE j < LEN(output) DO
-    output[j] := SYSTEM.VAL(SHORTCHAR, Nibble(text[j * 2]) * 16 + Nibble(text[j * 2 + 1]));
+    output[j] := SYSTEM.VAL(SYSTEM.CHAR8, Nibble(text[j * 2]) * 16 + Nibble(text[j * 2 + 1]));
     INC(j)
   END
 END DecodeHex;
 
 BEGIN
-  i := 0; WHILE i < LEN(key) DO key[i] := SYSTEM.VAL(SHORTCHAR, i); INC(i) END;
+  i := 0; WHILE i < LEN(key) DO key[i] := SYSTEM.VAL(SYSTEM.CHAR8, i); INC(i) END;
   data := 'OpenAI Oberon';
   DecodeHex('86a1e9bf017a601628c63ad3c8a8f030a3837ab37fe7f92f04186dbde83c3656', expected);
   status := HmacSha256.Compute(key, 0, data, 13, mac); ASSERT(status = PasswordStatus.Ok, 1);

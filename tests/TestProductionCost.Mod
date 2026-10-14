@@ -1,10 +1,10 @@
 MODULE TestProductionCost;
 
-IMPORT PasswordStatus, PasswordHash;
+IMPORT SYSTEM, PasswordStatus, PasswordHash;
 
 VAR policy: PasswordHash.Policy;
-  password: ARRAY 9 OF SHORTCHAR;
-  record: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
+  password: ARRAY 9 OF SYSTEM.CHAR8;
+  record: ARRAY PasswordHash.EncodedCapacity OF SYSTEM.CHAR8;
   recordLen, status: INTEGER;
   matches, needsRehash: BOOLEAN;
 

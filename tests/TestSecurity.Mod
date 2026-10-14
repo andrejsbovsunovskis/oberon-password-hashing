@@ -2,55 +2,55 @@ MODULE TestSecurity;
 
 IMPORT SYSTEM, PasswordStatus, PasswordBytes, Sha256, HmacSha256, Pbkdf2, PasswordHash;
 
-VAR key: ARRAY 21 OF SHORTCHAR;
-  data: ARRAY 9 OF SHORTCHAR;
-  password: ARRAY 9 OF SHORTCHAR;
-  salt: ARRAY 5 OF SHORTCHAR;
-  expectedMac: ARRAY 32 OF SHORTCHAR;
-  expectedDk: ARRAY 40 OF SHORTCHAR;
-  mac: ARRAY 32 OF SHORTCHAR;
-  dk: ARRAY 40 OF SHORTCHAR;
-  shortDk: ARRAY 31 OF SHORTCHAR;
-  block: ARRAY 64 OF SHORTCHAR;
-  tail: ARRAY 63 OF SHORTCHAR;
-  longPassword: ARRAY PasswordHash.PasswordLimit + 1 OF SHORTCHAR;
-  digest1, digest2: ARRAY Sha256.DigestLength OF SHORTCHAR;
-  shortDigest: ARRAY Sha256.DigestLength - 1 OF SHORTCHAR;
+VAR key: ARRAY 21 OF SYSTEM.CHAR8;
+  data: ARRAY 9 OF SYSTEM.CHAR8;
+  password: ARRAY 9 OF SYSTEM.CHAR8;
+  salt: ARRAY 5 OF SYSTEM.CHAR8;
+  expectedMac: ARRAY 32 OF SYSTEM.CHAR8;
+  expectedDk: ARRAY 40 OF SYSTEM.CHAR8;
+  mac: ARRAY 32 OF SYSTEM.CHAR8;
+  dk: ARRAY 40 OF SYSTEM.CHAR8;
+  shortDk: ARRAY 31 OF SYSTEM.CHAR8;
+  block: ARRAY 64 OF SYSTEM.CHAR8;
+  tail: ARRAY 63 OF SYSTEM.CHAR8;
+  longPassword: ARRAY PasswordHash.PasswordLimit + 1 OF SYSTEM.CHAR8;
+  digest1, digest2: ARRAY Sha256.DigestLength OF SYSTEM.CHAR8;
+  shortDigest: ARRAY Sha256.DigestLength - 1 OF SYSTEM.CHAR8;
   c: Sha256.Context;
   policy: PasswordHash.Policy;
-  record: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
-  tooSmall: ARRAY PasswordHash.EncodedCapacity - 1 OF SHORTCHAR;
-  oversized: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
-  alias: ARRAY PasswordHash.EncodedCapacity OF SHORTCHAR;
+  record: ARRAY PasswordHash.EncodedCapacity OF SYSTEM.CHAR8;
+  tooSmall: ARRAY PasswordHash.EncodedCapacity - 1 OF SYSTEM.CHAR8;
+  oversized: ARRAY PasswordHash.EncodedCapacity OF SYSTEM.CHAR8;
+  alias: ARRAY PasswordHash.EncodedCapacity OF SYSTEM.CHAR8;
   recordLen, status, i: INTEGER;
-  saved: SHORTCHAR;
+  saved: SYSTEM.CHAR8;
   matches, needsRehash: BOOLEAN;
 
-PROCEDURE Nibble(ch: SHORTCHAR): INTEGER;
+PROCEDURE Nibble(ch: SYSTEM.CHAR8): INTEGER;
+VAR result: INTEGER;
 BEGIN
-  IF ('0' <= ch) & (ch <= '9') THEN RETURN ORD(ch) - ORD('0') END;
-  RETURN ORD(ch) - ORD('a') + 10
+  IF ('0' <= ch) & (ch <= '9') THEN result := ORD(ch) - ORD('0')
+  ELSE result := ORD(ch) - ORD('a') + 10
+  END
+  RETURN result
 END Nibble;
 
-PROCEDURE DecodeHex(IN text: ARRAY OF SHORTCHAR; VAR output: ARRAY OF SHORTCHAR);
+PROCEDURE DecodeHex(text: ARRAY OF SYSTEM.CHAR8; VAR output: ARRAY OF SYSTEM.CHAR8);
 VAR j: INTEGER;
 BEGIN
   j := 0;
   WHILE j < LEN(output) DO
-    output[j] := SYSTEM.VAL(SHORTCHAR, Nibble(text[j * 2]) * 16 + Nibble(text[j * 2 + 1]));
+    output[j] := SYSTEM.VAL(SYSTEM.CHAR8, Nibble(text[j * 2]) * 16 + Nibble(text[j * 2 + 1]));
     INC(j)
   END
 END DecodeHex;
 
-PROCEDURE IsCleared(IN value: ARRAY OF SHORTCHAR): BOOLEAN;
-VAR j: INTEGER;
+PROCEDURE IsCleared(value: ARRAY OF SYSTEM.CHAR8): BOOLEAN;
+VAR j: INTEGER; ok: BOOLEAN;
 BEGIN
-  j := 0;
-  WHILE j < LEN(value) DO
-    IF value[j] # 0X THEN RETURN FALSE END;
-    INC(j)
-  END;
-  RETURN TRUE
+  j := 0; ok := TRUE;
+  WHILE (j < LEN(value)) & ok DO ok := value[j] = 0X; INC(j) END
+  RETURN ok
 END IsCleared;
 
 BEGIN
@@ -71,7 +71,7 @@ BEGIN
   ASSERT(status = PasswordStatus.BufferTooSmall, 29); ASSERT(IsCleared(shortDk), 30);
 
   i := 0;
-  WHILE i < LEN(block) DO block[i] := SYSTEM.VAL(SHORTCHAR, i); INC(i) END;
+  WHILE i < LEN(block) DO block[i] := SYSTEM.VAL(SYSTEM.CHAR8, i); INC(i) END;
   i := 0; WHILE i < LEN(tail) DO tail[i] := block[i + 1]; INC(i) END;
   status := Sha256.Hash(block, LEN(block), digest1); ASSERT(status = PasswordStatus.Ok, 5);
   status := Sha256.Init(c); ASSERT(status = PasswordStatus.Ok, 6);

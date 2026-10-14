@@ -9,6 +9,7 @@
 ```sh
 export FREEOBERON_HOME=/path/to/FreeOberon
 ./scripts/test.sh
+./scripts/test-fob.sh
 ```
 
 Скрипт собирает проект во временной папке, поэтому сгенерированные C- и symbol-файлы не попадают в исходное дерево. Он умеет работать на macOS arm64/x86_64 и Linux x86_64/aarch64 при наличии соответствующей цели FreeOberon; официально поддерживается пока только macOS arm64.
